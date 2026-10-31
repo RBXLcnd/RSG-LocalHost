@@ -6,9 +6,9 @@ UI redesigned with the RSG identity. Based on the original work by **s0m3thing_m
 
 ## Download
 
-Get the latest `RSG LocalHost.exe` from the [Releases](../../releases/latest) page and run it. No installation or Python needed.
+Get the latest `RSG-LocalHost-Setup.exe` from the [Releases](../../releases/latest) page and run it. It installs for your user only (no admin needed) and you do not need Python.
 
-Windows may show a "Windows protected your PC" warning because the app is not code-signed. Click **More info → Run anyway**. The exe is built by GitHub Actions straight from this source; the SHA-256 of every build is in the release notes and you can check it on VirusTotal.
+Windows may show a "Windows protected your PC" warning because the app is not code-signed. Click **More info → Run anyway**. The installer is built by GitHub Actions straight from this source; the SHA-256 of every build is in the release notes and you can check it on VirusTotal.
 
 ## Requirements
 
