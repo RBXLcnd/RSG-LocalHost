@@ -1,0 +1,48 @@
+name: Build exe
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Build exe
+        run: >
+          pyinstaller --noconfirm --clean --noconsole --onefile
+          --name "RSG LocalHost" --icon icon.ico
+          --add-data "app/assets;app/assets" --add-data "app/styles;app/styles" main.py
+
+      - name: SHA-256
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash "dist/RSG LocalHost.exe" -Algorithm SHA256).Hash
+          "SHA-256: $h" | Out-File -FilePath hash.txt -Encoding utf8
+          Get-Content hash.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RSG-LocalHost-exe
+          path: dist/*.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/RSG LocalHost.exe
+          body_path: hash.txt
+          generate_release_notes: true
