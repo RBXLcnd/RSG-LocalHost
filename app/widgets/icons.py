@@ -6,6 +6,7 @@ from PySide6.QtCore import QSize
 from PySide6.QtGui import QIcon, QPixmap
 
 from app.core.config import ICONS_DIR
+from app.styles.palette import pal
 
 ICON_MAP = {
     "home": "house",
@@ -34,6 +35,7 @@ def icon_path(name: str) -> Path:
 
 
 def app_icon(name: str, color: str = "#8ea2c7", size: int = 20) -> QIcon:
+    color = pal(color)
     path = icon_path(name)
     if not path.exists():
         return QIcon()

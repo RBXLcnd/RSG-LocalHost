@@ -10,6 +10,20 @@ Get the latest `RSG-LocalHost-Setup.exe` from the [Releases](../../releases/late
 
 Windows may show a "Windows protected your PC" warning because the app is not code-signed. Click **More info → Run anyway**. The installer is built by GitHub Actions straight from this source; the SHA-256 of every build is in the release notes and you can check it on VirusTotal.
 
+## Your data and updates
+
+Settings, profiles, session history, theme, language and the Discord sign-in are stored in `%APPDATA%\RSG LocalHost`, not next to the program. To update, just run the new installer; nothing is lost. Data saved by an older version next to the exe is moved over automatically the first time the new version runs from the same folder. The uninstaller asks before deleting this folder.
+
+The Discord key is stored encrypted with Windows (DPAPI), so only your Windows account can read it. If you copy the data folder to another account or computer, you just sign in to Discord again.
+
+**Backup:** Settings > Backup exports your profiles, tunnels, 24/7 options, theme and language to a `.json` file and imports it again (for example on another PC). The Discord key and the Studio path are never included.
+
+**Look:** Settings > Appearance switches between dark and light mode and lets you pick the accent color (seven presets or any custom color). Background themes work in both modes.
+
+## Language
+
+The app is in English. Click the **PT** button in the top right to switch the whole interface to Portuguese (and **EN** to go back). The choice is remembered. Console logs stay in English so they are easy to share when asking for help.
+
 ## Requirements
 
 - Windows 10 or later

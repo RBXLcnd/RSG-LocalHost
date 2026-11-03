@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QPainter, QPen
+from PySide6.QtGui import QColor as RawColor
+from app.styles.palette import qcolor as QColor
 from PySide6.QtWidgets import QAbstractButton
 
 
@@ -45,7 +47,7 @@ class ToggleSwitch(QAbstractButton):
         track = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         off, on = QColor("#0c1a38"), QColor("#0a8fe0")
         mix = self._offset
-        fill = QColor(
+        fill = RawColor(
             int(off.red() + (on.red() - off.red()) * mix),
             int(off.green() + (on.green() - off.green()) * mix),
             int(off.blue() + (on.blue() - off.blue()) * mix),

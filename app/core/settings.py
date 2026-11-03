@@ -5,6 +5,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from app.core import secure
+from app.styles import palette
 from app.core.config import DATA_FILE
 
 
@@ -19,6 +21,12 @@ class AppSettings:
     recent_tunnels: list[str] = field(default_factory=list)
     recent_maps: list[str] = field(default_factory=list)
     notify_ready: bool = True
+    onboarded: bool = False  # the first-run assistant was shown (or skipped)
+    check_updates: bool = True  # ask GitHub for a newer release at startup
+    language: str = "en"  # "en" or "pt" (see app/core/i18n.py)
+    background_theme: str = "classic"  # window background, see app/widgets/backgrounds.py
+    appearance: str = "dark"  # "dark" or "light" (see app/styles/palette.py)
+    accent: str = "#1e9bff"  # accent colour, any #rrggbb
     update_repo: str = ""
     profiles: list[dict[str, str]] = field(default_factory=list)
     history: list[dict[str, Any]] = field(default_factory=list)
@@ -26,6 +34,7 @@ class AppSettings:
     auto_feature_enabled: bool = False  # is the 24/7 section shown at all (asked on first launch, then in Settings)
     auto_feature_asked: bool = False    # the first-launch question was already answered
     auto_enabled: bool = False
+    auto_private: bool = False    # 24/7 cycle without publishing anything to Discord (hidden from /server-status)
     auto_on_hours: str = "4"      # hours the server stays online
     auto_off_hours: str = "2"     # hours it stays paused before coming back
     auto_maps: list[str] = field(default_factory=list)  # map rotation; empty = just use the Map file field
@@ -72,8 +81,10 @@ def _clean_history(value: Any) -> list[dict[str, Any]]:
             continue
         if not isinstance(duration, int) or isinstance(duration, bool) or duration < 0:
             continue
+        peak = item.get("peak")
         cleaned.append(
             {
+                "peak": peak if isinstance(peak, int) and not isinstance(peak, bool) and 0 <= peak <= 500 else 0,
                 "mode": mode,
                 "started": started,
                 "duration": duration,
@@ -107,13 +118,27 @@ class SettingsStore:
                     settings.recent_maps = _clean_list(settings.recent_maps)
                     if not isinstance(settings.notify_ready, bool):
                         settings.notify_ready = True
+                    if not isinstance(settings.onboarded, bool):
+                        settings.onboarded = False
+                    if not isinstance(settings.check_updates, bool):
+                        settings.check_updates = True
+                    if settings.language not in ("en", "pt"):
+                        settings.language = "en"
+                    if not isinstance(settings.background_theme, str):
+                        settings.background_theme = "classic"
+                    if settings.appearance not in ("dark", "light"):
+                        settings.appearance = "dark"
+                    if not palette.valid_accent(settings.accent):
+                        settings.accent = "#1e9bff"
                     if not isinstance(settings.update_repo, str):
                         settings.update_repo = ""
                     settings.auto_maps = _clean_list(settings.auto_maps)
                     for key in ("server_name", "discord_key", "discord_username"):
                         if not isinstance(getattr(settings, key), str):
                             setattr(settings, key, "")
-                    for key in ("auto_enabled", "auto_feature_enabled", "auto_feature_asked"):
+                    stored_key = settings.discord_key
+                    settings.discord_key = secure.unprotect(stored_key)
+                    for key in ("auto_enabled", "auto_private", "auto_feature_enabled", "auto_feature_asked"):
                         if not isinstance(getattr(settings, key), bool):
                             setattr(settings, key, False)
                     for key, default in (("auto_on_hours", "4"), ("auto_off_hours", "2")):
@@ -123,14 +148,23 @@ class SettingsStore:
                         settings.auto_map_index = 0
                     settings.profiles = _clean_profiles(settings.profiles)
                     settings.history = _clean_history(settings.history)
+                    if stored_key and not stored_key.startswith(secure.PREFIX) and secure.available():
+                        # a key saved in plain text by an older version: encrypt it now
+                        try:
+                            self.save(settings)
+                        except OSError:
+                            pass
                     return settings
         except Exception:
             pass
         return AppSettings()
 
     def save(self, settings: AppSettings) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        payload = asdict(settings)
+        payload["discord_key"] = secure.protect(settings.discord_key)
         self.path.write_text(
-            json.dumps(asdict(settings), indent=2),
+            json.dumps(payload, indent=2),
             encoding="utf-8",
         )
 

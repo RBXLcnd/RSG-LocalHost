@@ -39,6 +39,8 @@ def validate_user_id(value: str) -> str | None:
 
 
 class CreatePage(Page):
+    SCROLL = True  # the 24/7 section makes the page taller than a small window
+
     def __init__(self, window) -> None:
         super().__init__()
         self.window = window
@@ -249,6 +251,25 @@ class CreatePage(Page):
             validator=validate_name,
         )
 
+        private_text = QVBoxLayout()
+        private_text.setSpacing(3)
+        private_title = QLabel("Private server")
+        private_title.setObjectName("fieldLabel")
+        private_hint = QLabel(
+            "Hidden from the Discord /server-status list. Nothing about this server is sent to Discord. "
+            "Share your tunnel address only with the people you want."
+        )
+        private_hint.setObjectName("fieldHint")
+        private_hint.setWordWrap(True)
+        private_text.addWidget(private_title)
+        private_text.addWidget(private_hint)
+        self.private_toggle = ToggleSwitch(settings.auto_private)
+        private_row = QHBoxLayout()
+        private_row.setSpacing(18)
+        private_row.addLayout(private_text, 1)
+        private_row.addWidget(self.private_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.private_toggle.toggled.connect(self._on_private_toggled)
+
         row = QHBoxLayout()
         row.setSpacing(14)
         row.addWidget(self.auto_on, 1)
@@ -261,18 +282,25 @@ class CreatePage(Page):
         auto_col = QVBoxLayout(self.auto_fields)
         auto_col.setContentsMargins(0, 0, 0, 0)
         auto_col.setSpacing(12)
+        auto_col.addLayout(private_row)
         auto_col.addWidget(self.server_name)
         auto_col.addWidget(hours)
         box.addWidget(self.auto_fields)
 
         self.auto_toggle.toggled.connect(self._on_auto_toggled)
         self._on_auto_toggled(settings.auto_enabled, save=False)
+        self._on_private_toggled(settings.auto_private, save=False)
         return box
 
     def _on_auto_toggled(self, enabled: bool, save: bool = True) -> None:
         self.auto_fields.setEnabled(enabled)
         if save:
             self.window.set_auto_settings(auto_enabled=enabled)
+
+    def _on_private_toggled(self, private: bool, save: bool = True) -> None:
+        self.server_name.setVisible(not private)  # no name needed: it is never published
+        if save:
+            self.window.set_auto_settings(auto_private=private)
 
     def _refresh_rotation_label(self) -> None:
         count = len(self.window.settings.auto_maps)
@@ -366,16 +394,18 @@ class CreatePage(Page):
             if not self.window.settings.auto_maps and not args[3]:
                 self.window.toast("24/7: choose a Map file or add maps to the rotation.", "warning")
                 return
-            if not self.server_name.validate():
+            private = self.private_toggle.isChecked()
+            if not private and not self.server_name.validate():
                 self.window.toast("24/7: choose a server name (3-24 characters).", "error")
                 return
-            if not self.tunnel.value().strip():
+            if not private and not self.tunnel.value().strip():
                 self.window.toast("24/7: fill in your tunnel address so players can find the server.", "warning")
                 return
             self.window.set_auto_settings(
                 auto_on_hours=self.auto_on.value().replace(",", "."),
                 auto_off_hours=self.auto_off.value().replace(",", "."),
-                server_name=self.server_name.value().strip(),
+                server_name=self.server_name.value().strip() if not private else self.window.settings.server_name,
+                auto_private=private,
             )
             self.window.start_auto_host(*args)
             return

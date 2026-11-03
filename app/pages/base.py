@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame, QGridLayout, QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QVBoxLayout, QWidget,
+)
 
+from app.styles.palette import pal
 from app.widgets.buttons import IconButton
 from app.widgets.status import StatusDot
 
@@ -52,10 +55,25 @@ class Page(QWidget):
     """Centred content column with an eyebrow / title header (no sidebar, no rule)."""
 
     MAX_WIDTH: int | None = 940
+    SCROLL = False  # True: the page scrolls vertically when it is taller than the window
 
     def __init__(self) -> None:
         super().__init__()
-        shell = QHBoxLayout(self)
+        if self.SCROLL:
+            outer = QVBoxLayout(self)
+            outer.setContentsMargins(0, 0, 0, 0)
+            scroll = QScrollArea()
+            scroll.setObjectName("pageScroll")
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            body = QWidget()
+            body.setObjectName("pageBody")
+            scroll.setWidget(body)
+            outer.addWidget(scroll)
+            shell = QHBoxLayout(body)
+        else:
+            shell = QHBoxLayout(self)
         shell.setContentsMargins(32, 0, 32, 0)
         column = QWidget()
         column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -185,7 +203,7 @@ class InfoStrip(QFrame):
             return
         label.setText(value)
         if color:
-            label.setStyleSheet(f"color: {color};")
+            label.setStyleSheet(f"color: {pal(color)};")
 
     def add_inline_action(self, key: str, icon: str, tooltip: str, callback) -> None:
         row = self.value_rows.get(key)

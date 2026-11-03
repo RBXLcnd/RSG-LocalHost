@@ -30,6 +30,9 @@ class NavTab(QPushButton):
         self.style().unpolish(self)
         self.style().polish(self)
 
+    def restyle(self) -> None:
+        self.setIcon(app_icon(self.icon_name, "#f4f8ff" if self.property("active") else "#8ea2c7"))
+
     def set_content(self, text: str, icon: str) -> None:
         self.icon_name = icon
         self.setText(text)
@@ -83,9 +86,22 @@ class TopNav(QWidget):
 
 
 class TitleBar(QWidget):
+    def restyle(self) -> None:
+        """Icons are painted pixmaps: redo them after a mode / accent change."""
+        for tab in self.findChildren(NavTab):
+            tab.restyle()
+        for button in self.findChildren(IconButton):
+            button.restyle()
+        self.lang_button.setIcon(app_icon("globe", "#8ea2c7"))
+        for mark in self.findChildren(BrandMark):
+            mark.update()
+
+
     minimize_requested = Signal()
     maximize_requested = Signal()
     close_requested = Signal()
+    language_requested = Signal()
+    update_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -108,6 +124,26 @@ class TitleBar(QWidget):
         layout.addWidget(self.nav)
         layout.addStretch()
 
+        self.update_button = QPushButton()
+        self.update_button.setObjectName("updateButton")
+        self.update_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.update_button.setFixedHeight(28)
+        self.update_button.setToolTip("A new version is available. Click to open the download page.")
+        self.update_button.clicked.connect(self.update_requested)
+        self.update_button.hide()
+        layout.addWidget(self.update_button)
+        layout.addSpacing(8)
+
+        self.lang_button = QPushButton("PT")
+        self.lang_button.setObjectName("langButton")
+        self.lang_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.lang_button.setIcon(app_icon("globe", "#8ea2c7"))
+        self.lang_button.setIconSize(QSize(14, 14))
+        self.lang_button.setFixedSize(58, 28)
+        self.lang_button.clicked.connect(self.language_requested)
+        layout.addWidget(self.lang_button)
+        layout.addSpacing(10)
+
         self.min_button = IconButton("minimize", "Minimize")
         self.max_button = IconButton("square", "Maximize")
         self.close_button = IconButton("close", "Close", "chromeDanger")
@@ -118,6 +154,23 @@ class TitleBar(QWidget):
         self.min_button.clicked.connect(self.minimize_requested)
         self.max_button.clicked.connect(self.maximize_requested)
         self.close_button.clicked.connect(self.close_requested)
+
+    def set_update(self, version: str) -> None:
+        """Show the "Update vX" pill (empty version hides it)."""
+        if version:
+            self.update_button.setText(f"Update v{version}")
+            self.update_button.show()
+        else:
+            self.update_button.hide()
+
+    def set_language(self, lang: str) -> None:
+        """The button names the language it switches to (shown untranslated on purpose)."""
+        if lang == "pt":
+            self.lang_button.setText("EN")
+            self.lang_button.setToolTip("Switch to English")
+        else:
+            self.lang_button.setText("PT")
+            self.lang_button.setToolTip("Mudar para português")
 
     def is_control_at(self, global_pos) -> bool:
         widget = self.childAt(self.mapFromGlobal(global_pos))

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QFont, QPainter, QPen
+from app.styles.palette import qcolor as QColor
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
 from app.widgets.icons import app_icon

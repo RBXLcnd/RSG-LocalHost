@@ -7,12 +7,15 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from app.core.config import OVERVIEW_HISTORY_ROWS, PROXY_PORT
+from app.core import stats as stats_mod
+from app.core.i18n import tr
 from app.core.uptime import format_uptime
 from app.pages.base import Page, Step, card, divider, section_label, vline
 from app.widgets.buttons import AppButton
 from app.widgets.effects import animate_glow, apply_glow
 from app.widgets.icons import app_icon
 from app.widgets.status import StatusDot
+from app.widgets.week_chart import WeekChart
 
 
 class ActionTile(QFrame):
@@ -120,6 +123,34 @@ def _history_row(entry: dict) -> QFrame:
     return row
 
 
+def _metric(value: str, caption: str) -> QVBoxLayout:
+    box = QVBoxLayout()
+    box.setSpacing(2)
+    number = QLabel(value)
+    number.setObjectName("metricValue")
+    text = QLabel(caption)
+    text.setObjectName("fieldHint")
+    box.addWidget(number)
+    box.addWidget(text)
+    return box
+
+
+def _stats_card(week: stats_mod.WeekStats) -> QFrame:
+    """Last 7 days of hosting: totals plus a small bar chart (hours per day)."""
+    box = QVBoxLayout()
+    box.setSpacing(12)
+    box.addWidget(section_label("Last 7 days"))
+    numbers = QHBoxLayout()
+    numbers.setSpacing(28)
+    numbers.addLayout(_metric(format_uptime(week.total_seconds), "Time online"))
+    numbers.addLayout(_metric(str(week.sessions), "Sessions hosted"))
+    numbers.addLayout(_metric(str(week.peak_players) if week.peak_players else "-", "Player peak"))
+    numbers.addStretch(1)
+    box.addLayout(numbers)
+    box.addWidget(WeekChart(week.days))
+    return card(box, (22, 16, 22, 12))
+
+
 class OverviewPage(Page):
     def __init__(self, window) -> None:
         super().__init__()
@@ -208,6 +239,9 @@ class OverviewPage(Page):
         self.root.addWidget(card(steps, (22, 18, 22, 16)))
 
         history = window.settings.history
+        week = stats_mod.compute(history)
+        if week.sessions:
+            self.root.addWidget(_stats_card(week))
         if history:
             box = QVBoxLayout()
             box.setSpacing(10)

@@ -217,6 +217,13 @@ class AutoPilot(QObject):
         self._last_push_at = datetime.now(timezone.utc)
         push_status(self._log, **status)
 
+    def refresh_status(self) -> None:
+        """Re-publish the last state now (e.g. the player count changed). Rate-limited."""
+        if not self.active or self._last_status is None or self._last_push_at is None:
+            return
+        if (datetime.now(timezone.utc) - self._last_push_at).total_seconds() >= 10:
+            self._push(**self._last_status)
+
     def _heartbeat(self, now: datetime) -> None:
         if self._last_status is None or self._last_push_at is None:
             return

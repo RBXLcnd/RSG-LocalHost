@@ -34,7 +34,7 @@ QPushButton[tab="true"]:hover {
   background: rgba(16,36,78,0.55);
 }
 QPushButton[tab="true"][active="true"] {
-  color: #ffffff;
+  color: #f4f8ff;
   font-weight: 700;
   border-bottom: 2px solid #00b2ff;
   background: rgba(0,140,255,0.10);
@@ -160,6 +160,26 @@ QPushButton[variant="danger"]:hover {
   background: rgba(90,20,40,0.5);
 }
 
+QPushButton#updateButton {
+  border: 1px solid #00b2ff;
+  border-radius: 8px;
+  background: rgba(0,178,255,0.14);
+  color: #8fdcff;
+  font-weight: 700;
+  font-size: 8pt;
+  padding: 0 12px;
+}
+QPushButton#updateButton:hover { background: rgba(0,178,255,0.28); color: #f4f8ff; }
+QPushButton#langButton {
+  border: 1px solid #16294f;
+  border-radius: 8px;
+  background: rgba(10,22,48,0.55);
+  color: #c5d2ee;
+  font-weight: 700;
+  font-size: 8pt;
+  padding: 0 8px 0 6px;
+}
+QPushButton#langButton:hover { border-color: #1f5bff; background: rgba(16,36,78,0.75); color: #f4f8ff; }
 QPushButton[variant="chrome"] {
   background: transparent;
   border-radius: 0;
@@ -294,7 +314,7 @@ QLabel#helpBadge {
   font-weight: 700;
 }
 QLabel#helpBadge:hover {
-  color: #ffffff;
+  color: #f4f8ff;
   border-color: #4db8ff;
 }
 QFrame#inputShell:focus-within {
@@ -309,7 +329,7 @@ QLineEdit#lineEdit {
   selection-background-color: #2a5bd0;
 }
 QLineEdit#lineEdit:focus {
-  color: #ffffff;
+  color: #f4f8ff;
 }
 
 QLabel#pathLabel {
@@ -362,6 +382,7 @@ QLabel#supportLink {
 
 /* ---------- changelog ---------- */
 QScrollArea#changeScroll, QWidget#changeBody { background: transparent; border: 0; }
+QScrollArea#pageScroll, QWidget#pageBody { background: transparent; border: 0; }
 QLabel#changeVersion { color: #f4f8ff; font-size: 12pt; font-weight: 700; }
 QLabel#changeDate { color: #5d7099; font-size: 9pt; }
 QLabel#changeCurrent {
@@ -512,4 +533,22 @@ QInputDialog QLineEdit {
   border-radius: 6px;
   padding: 6px 8px;
   selection-background-color: #2a5bd0;
+}
+
+/* ---------- first-run assistant ---------- */
+QDialog#welcomeDialog {
+  background: #081227;
+}
+QDialog#welcomeDialog QLabel {
+  background: transparent;
+}
+QPushButton[variant="secondary"]:checked {
+  background: rgba(30,155,255,0.28);
+  border: 1px solid #4db8ff;
+  color: #f4f8ff;
+}
+QLabel#metricValue {
+  color: #f4f8ff;
+  font-size: 14pt;
+  font-weight: 700;
 }

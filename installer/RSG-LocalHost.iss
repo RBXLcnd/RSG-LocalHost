@@ -1,6 +1,6 @@
 ; Inno Setup script for RSG LocalHost. Built by GitHub Actions (see .github/workflows/build.yml).
-; Per-user install (no admin needed): the app stores its settings next to the exe, so it must live
-; in a folder the user can write to.
+; Per-user install (no admin needed). Updating = running a newer installer over the old one; the user's
+; data is in %APPDATA%\RSG LocalHost and is never overwritten.
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -44,7 +44,12 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopico
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
-[UninstallDelete]
-; settings (contains the Discord key) and cache created by the app next to the exe
-Type: files;          Name: "{app}\mattslocalhost_data.json"
-Type: filesandordirs; Name: "{app}\.localhost_cache"
+[Code]
+// Settings, profiles and the Discord sign-in live in %APPDATA%\RSG LocalHost so updates never touch them.
+// On uninstall, ask before removing them (a silent uninstall keeps them).
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+    if MsgBox('Also delete your saved settings, profiles and Discord sign-in?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+      DelTree(ExpandConstant('{userappdata}\RSG LocalHost'), True, True, True);
+end;

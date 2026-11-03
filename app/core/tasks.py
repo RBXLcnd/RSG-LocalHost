@@ -62,7 +62,7 @@ class HostSessionWorker(QObject):
             self.log.emit("Server and client launched", "success")
         except Exception as exc:
             self.status.emit("Launch failed", "err")
-            self.progress.emit(100, "Erreur")
+            self.progress.emit(100, "Error")
             self.log.emit(f"ERROR: {exc}", "error")
         finally:
             self.finished.emit()

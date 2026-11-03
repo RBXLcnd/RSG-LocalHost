@@ -6,11 +6,16 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from app.core.config import ROOT_DIR
+from app.core.config import CACHE_DIR, ROOT_DIR
 
 _roblox_processes: list[subprocess.Popen] = []
 _roblox_processes_by_key: dict[str, list[subprocess.Popen]] = {}
-SERVER_PLACE_DIR = ROOT_DIR / ".localhost_cache" / "places"
+# Strings that appear in the command line of the Studio/Player processes THIS app started (unique place
+# file path, session GUIDs). They let us find our own processes even if Studio handed the work over to
+# another process, without ever touching a Studio the user opened for their own work.
+_markers_by_key: dict[str, list[str]] = {}
+_markers_all: list[str] = []
+SERVER_PLACE_DIR = CACHE_DIR / "places"
 RUNTIME_SERVER_PLACE = Path(os.environ.get("LOCALAPPDATA", "")) / "Roblox" / "server.rbxl"
 
 
@@ -291,7 +296,7 @@ def launch_server_command(
     proc = subprocess.Popen(
         command,
     )
-    _track_roblox_process(proc, session_key)
+    _track_roblox_process(proc, session_key, _launch_markers(command))
     return proc
 
 
@@ -330,27 +335,96 @@ def launch_client(
     proc = subprocess.Popen(
         command
     )
-    _track_roblox_process(proc, session_key)
+    _track_roblox_process(proc, session_key, _launch_markers(command))
     return proc
 
 
-def _track_roblox_process(proc: subprocess.Popen, session_key: str | None = None) -> None:
+def _launch_markers(command: list[str]) -> list[str]:
+    """Unique values in a launch command line that identify processes started with it."""
+    found = []
+    for flag in ("-localPlaceFile", "-parentSessionGuid", "-playTestSessionGuid"):
+        if flag in command:
+            index = command.index(flag)
+            if index + 1 < len(command) and len(command[index + 1]) >= 8:
+                found.append(command[index + 1])
+    return found
+
+
+def _track_roblox_process(proc: subprocess.Popen, session_key: str | None = None, markers: list[str] | None = None) -> None:
     _roblox_processes.append(proc)
     if session_key:
         _roblox_processes_by_key.setdefault(session_key, []).append(proc)
+    for marker in markers or []:
+        if marker not in _markers_all:
+            _markers_all.append(marker)
+        if session_key and marker not in _markers_by_key.setdefault(session_key, []):
+            _markers_by_key[session_key].append(marker)
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _no_window() -> int:
+    return subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+
+
+def _find_marked_pids(markers: list[str]) -> list[int]:
+    """PIDs of Studio/Player processes whose command line contains one of our markers (Windows only)."""
+    if not markers or not _is_windows():
+        return []
+    script = (
+        "$m = $env:RSG_MARKERS -split '\\|'; "
+        "Get-CimInstance Win32_Process -Filter \"Name='RobloxStudioBeta.exe' OR Name='RobloxPlayerBeta.exe'\" | "
+        "Where-Object { $c = $_.CommandLine; $c -and ($m | Where-Object { $_ -and $c.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 }) } | "
+        "ForEach-Object { $_.ProcessId }"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_no_window(),
+            env={**os.environ, "RSG_MARKERS": "|".join(m for m in markers if m and "|" not in m)},
+            timeout=15,
+        )
+    except Exception:
+        return []
+    pids = []
+    for line in result.stdout.decode(errors="ignore").split():
+        if line.isdigit():
+            pids.append(int(line))
+    return pids
+
+
+def _kill_marked(markers: list[str]) -> int:
+    """Kill only the processes that carry one of our markers. Never matches by program name."""
+    killed = 0
+    for pid in _find_marked_pids(markers):
+        try:
+            result = subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=_no_window(),
+            )
+            if result.returncode == 0:
+                killed += 1
+        except Exception:
+            pass
+    return killed
 
 
 def _kill_process_tree(proc: subprocess.Popen) -> bool:
     try:
         if proc.poll() is not None:
             return False
-        if os.name == "nt":
-            flags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+        if _is_windows():
             result = subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                creationflags=flags,
+                creationflags=_no_window(),
             )
             return result.returncode == 0
         proc.kill()
@@ -369,6 +443,11 @@ def stop_roblox_processes(session_key: str) -> int:
             _roblox_processes.remove(proc)
         except ValueError:
             pass
+    markers = _markers_by_key.pop(session_key, [])
+    killed += _kill_marked(markers)
+    for marker in markers:
+        if marker in _markers_all:
+            _markers_all.remove(marker)
     return killed
 
 
@@ -398,21 +477,9 @@ def stop_all_roblox_processes() -> int:
     for proc in list(_roblox_processes):
         if _kill_process_tree(proc):
             killed += 1
+    killed += _kill_marked(list(_markers_all))
     _roblox_processes.clear()
     _roblox_processes_by_key.clear()
-
-    if os.name == "nt":
-        flags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
-        for target in ("RobloxStudioBeta.exe", "RobloxPlayerBeta.exe"):
-            try:
-                result = subprocess.run(
-                    ["taskkill", "/F", "/T", "/IM", target],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    creationflags=flags,
-                )
-                if result.returncode == 0:
-                    killed += 1
-            except Exception:
-                pass
+    _markers_by_key.clear()
+    _markers_all.clear()
     return killed

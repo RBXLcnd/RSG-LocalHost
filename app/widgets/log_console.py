@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtGui import QTextCharFormat, QColor, QTextCursor, QFont
+from PySide6.QtGui import QTextCharFormat, QTextCursor, QFont
+from app.styles.palette import qcolor as QColor
 from PySide6.QtWidgets import QTextEdit
 
 

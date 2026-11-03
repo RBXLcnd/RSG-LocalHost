@@ -4,13 +4,15 @@ from PySide6.QtCore import QEasingCurve, QPropertyAnimation
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGraphicsDropShadowEffect, QWidget
 
+from app.styles.palette import pal
+
 
 def apply_glow(widget: QWidget, color: str = "#0096ff", blur: int = 26, alpha: int = 70) -> QGraphicsDropShadowEffect:
     """Attach a soft coloured glow (drop shadow with no offset) to a widget."""
     glow = QGraphicsDropShadowEffect(widget)
     glow.setOffset(0, 0)
     glow.setBlurRadius(blur)
-    tint = QColor(color)
+    tint = QColor(pal(color))
     tint.setAlpha(alpha)
     glow.setColor(tint)
     widget.setGraphicsEffect(glow)

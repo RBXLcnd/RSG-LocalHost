@@ -7,16 +7,18 @@ from pathlib import Path
 from ctypes import wintypes
 
 import shiboken6
-from PySide6.QtCore import QEasingCurve, QEvent, QMetaObject, QPoint, QPropertyAnimation, Qt, QThread, QTimer, Signal, Slot
-from PySide6.QtGui import QAction, QCloseEvent
+from PySide6.QtCore import QEasingCurve, QEvent, QMetaObject, QPoint, QPropertyAnimation, QUrl, Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtGui import QAction, QCloseEvent, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication,
+    QScrollArea,
     QFileDialog,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QMainWindow,
     QMenu,
     QInputDialog,
+    QDialog,
     QMessageBox,
     QStackedWidget,
     QSystemTrayIcon,
@@ -35,7 +37,10 @@ from app.core.config import (
     WINDOW_MIN_W,
     WINDOW_W,
 )
-from app.core import discord_status
+from app.core import discord_status, i18n
+from app.core.i18n import tr
+from app.core.player_count import PlayerCountServer
+from app.core import updates
 from app.core.api import normalize_key
 from app.core.auth import KeyCheck
 from app.core.autopilot import AutoConfig, AutoPilot
@@ -66,7 +71,13 @@ from app.pages.session import SessionPage
 from app.pages.settings import SettingsPage
 from app.pages.support import SupportPage
 from app.ui.footer import StatusStrip
+from app.ui.welcome import WelcomeDialog
+from app.core import backup
+from app.styles import palette
+from app.styles.theme import refresh_stylesheet
+from app.widgets import theme_picker
 from app.ui.title_bar import TitleBar
+from app.widgets import brand
 from app.widgets.brand import GlowBackground, make_app_icon
 from app.widgets.drop_overlay import DropOverlay
 from app.widgets.qr_overlay import QrOverlay
@@ -83,6 +94,7 @@ class MainWindow(QMainWindow):
     BORDER = 8
 
     auto_log = Signal(str, str)  # thread-safe route for 24/7 / Discord log lines
+    update_state_changed = Signal()  # update check started / finished (the Settings page listens)
     account_changed = Signal()   # Discord sign-in state changed (login started / finished / signed out)
 
     def __init__(self) -> None:
@@ -121,6 +133,7 @@ class MainWindow(QMainWindow):
         self._check_timeout.timeout.connect(self._on_check_timeout)
         # Session history: wall-clock start of each running session, filled in when it stops.
         self._session_started: dict[str, tuple[str, str, str]] = {}  # mode -> (started, map, tunnel)
+        self._peak_players = 0  # most players reported during the current hosted session
         # Restart of the host session (parameters of the running server, so a restart repeats it exactly).
         self._host_params: tuple[str, str, str, str] | None = None
         self._restart_pending = False
@@ -142,6 +155,19 @@ class MainWindow(QMainWindow):
         # Discord account (required to create a server)
         self._key_check: KeyCheck | None = None
         discord_status.set_session(self.settings.discord_key)
+        # Update check (GitHub latest release): once at startup, then every few hours
+        self._update_check: updates.UpdateCheck | None = None
+        self.update_state: tuple[str, str, str] = ("idle", "", "")  # (state, version, url)
+        self._update_notified = ""
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(6 * 3600 * 1000)
+        self._update_timer.timeout.connect(lambda: self.check_for_updates(manual=False))
+        self._update_timer.start()
+        QTimer.singleShot(6000, lambda: self.check_for_updates(manual=False))
+        # Player count reported by the game (HTTP on 127.0.0.1) -> Discord panel
+        self.player_count = PlayerCountServer(self)
+        self.player_count.count_changed.connect(self._on_player_count)
+        self.player_count.start()
         self.setAcceptDrops(True)
         self._drag_active = False
         self._force_quit = False
@@ -160,6 +186,7 @@ class MainWindow(QMainWindow):
 
     def _build_shell(self) -> None:
         root = GlowBackground()
+        self._background = root
         root.setObjectName("root")
         self.setCentralWidget(root)
 
@@ -168,6 +195,9 @@ class MainWindow(QMainWindow):
         outer.setSpacing(0)
 
         self.title_bar = TitleBar()
+        self.title_bar.language_requested.connect(self.toggle_language)
+        self.title_bar.update_requested.connect(self.open_update_page)
+        self.title_bar.set_language(i18n.get_language())
         self.title_bar.minimize_requested.connect(self.showMinimized)
         self.title_bar.maximize_requested.connect(self.toggle_maximize)
         self.title_bar.close_requested.connect(self.close)
@@ -191,14 +221,17 @@ class MainWindow(QMainWindow):
         QApplication.setQuitOnLastWindowClosed(False)
 
         menu = QMenu()
-        open_action = QAction("Open RSG LocalHost", menu)
+        open_action = QAction(menu)
+        i18n.register_action(open_action, "Open RSG LocalHost")
         open_action.triggered.connect(self.restore_from_tray)
         font = open_action.font()
         font.setBold(True)
         open_action.setFont(font)
-        self.tray_stop_action = QAction("Stop all sessions", menu)
+        self.tray_stop_action = QAction(menu)
+        i18n.register_action(self.tray_stop_action, "Stop all sessions")
         self.tray_stop_action.triggered.connect(self.stop_everything)
-        quit_action = QAction("Quit", menu)
+        quit_action = QAction(menu)
+        i18n.register_action(quit_action, "Quit")
         quit_action.triggered.connect(self.quit_app)
         menu.addAction(open_action)
         menu.addAction(self.tray_stop_action)
@@ -507,6 +540,7 @@ class MainWindow(QMainWindow):
             self.remember_map(place_path)
         self._host_params = (user_id, tunnel, port, place_path)
         self._session_started["create"] = (self._now_iso(), Path(place_path).name if place_path else "", tunnel)
+        self._peak_players = 0
         self.mode = "create"
         self.running = True
         self.active_modes.add("create")
@@ -613,9 +647,15 @@ class MainWindow(QMainWindow):
         self._key_check = check
         check.start()
 
+    def _on_player_count(self, count: int) -> None:
+        self._peak_players = max(self._peak_players, count)
+        discord_status.set_players(count)
+        self.autopilot.refresh_status()
+
     def shutdown_status(self) -> None:
         """Last chance to tell Discord the server is off: tray quit, Windows logoff/shutdown, any exit path."""
         self.autopilot.disarm()  # pushes "offline" only if the 24/7 cycle was running
+        self.player_count.stop()
         discord_status.flush(timeout=4.0)
 
     def _publish_offline_if_idle(self) -> None:
@@ -656,6 +696,12 @@ class MainWindow(QMainWindow):
         except ValueError:
             self.toast("24/7: hours online / paused must be numbers above 0.", "error")
             return
+        # A listing from an earlier public run must not stay up: mark it offline once, then go quiet.
+        discord_status.set_private(False)
+        if s.auto_private and s.discord_key and s.server_name:
+            discord_status.set_identity(s.server_name, tunnel)
+            discord_status.push_status(self.log_auto, online=False)
+        discord_status.set_private(s.auto_private)
         discord_status.set_identity(s.server_name, tunnel)
         config = AutoConfig(
             user_id=user_id,
@@ -669,24 +715,20 @@ class MainWindow(QMainWindow):
         self.autopilot.start(config, s.auto_map_index)
 
     def ask_auto_feature_if_needed(self) -> None:
-        """First launch: let the user decide whether the 24/7 section exists at all."""
-        if self.settings.auto_feature_asked:
+        """First launch: the welcome assistant (language, Studio, Discord, 24/7). Older installs skip it."""
+        if self.settings.onboarded:
             return
-        box = QMessageBox(self)
-        box.setWindowTitle("24/7 mode")
-        box.setIcon(QMessageBox.Icon.Question)
-        box.setText("Do you want the 24/7 mode?")
-        box.setInformativeText(
-            "It keeps a server online on a schedule (online, pause, next map, repeat) and shows its status on Discord. "
-            "You can turn it on or off later in Settings."
+        if self.settings.auto_feature_asked:  # existing user from a version before the assistant
+            self.settings = self.store.update(self.settings, onboarded=True)
+            return
+        dialog = WelcomeDialog(self)
+        finished = dialog.exec() == QDialog.DialogCode.Accepted
+        enabled = finished and dialog.auto_enabled
+        self.settings = self.store.update(
+            self.settings, onboarded=True, auto_feature_enabled=enabled, auto_feature_asked=True
         )
-        yes = box.addButton("Yes, show 24/7", QMessageBox.ButtonRole.AcceptRole)
-        box.addButton("No, hide it", QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(yes)
-        box.exec()
-        enabled = box.clickedButton() is yes
-        self.settings = self.store.update(self.settings, auto_feature_enabled=enabled, auto_feature_asked=True)
-        if self.current_key == "create":
+        self.update_session_status()
+        if self.current_key in ("create", "settings"):
             self.navigate("overview")
 
     def set_auto_feature(self, enabled: bool) -> bool:
@@ -835,6 +877,80 @@ class MainWindow(QMainWindow):
         self.settings = self.store.update(self.settings, notify_ready=enabled)
         if enabled:
             play_ready()  # preview
+
+    def set_language(self, lang: str) -> None:
+        """Switch the app between English and Portuguese, instantly and for good."""
+        i18n.set_language(lang)
+        lang = i18n.get_language()
+        self.settings = self.store.update(self.settings, language=lang)
+        i18n.retranslate_all()
+        self.title_bar.set_language(lang)
+        self.update_session_status()
+        self._background.update()
+
+    def toggle_language(self) -> None:
+        self.set_language("en" if i18n.get_language() == "pt" else "pt")
+
+    def set_appearance(self, mode: str | None = None, accent: str | None = None) -> None:
+        """Dark/light mode and accent colour. Re-colours the whole app at once."""
+        mode = mode or self.settings.appearance
+        accent = accent or self.settings.accent
+        self.settings = self.store.update(self.settings, appearance=mode, accent=accent)
+        palette.configure(self.settings.appearance, self.settings.accent)
+        theme_picker._thumbs.clear()
+        refresh_stylesheet(QApplication.instance())
+        self.title_bar.restyle()
+        self._background.update()
+        bar = None
+        for area in self.findChildren(QScrollArea):
+            if area.isVisible():
+                bar = area.verticalScrollBar().value()
+                break
+        key = self.current_key
+        self.navigate(key)
+        if bar:
+            QTimer.singleShot(0, lambda: [a.verticalScrollBar().setValue(bar) for a in self.findChildren(QScrollArea) if a.isVisible()])
+
+    def set_background_theme(self, key: str) -> None:
+        brand.set_theme(key)
+        key = brand.get_theme()
+        self.settings = self.store.update(self.settings, background_theme=key)
+        self._background.update()
+
+    def set_check_updates(self, enabled: bool) -> None:
+        self.settings = self.store.update(self.settings, check_updates=enabled)
+
+    def check_for_updates(self, manual: bool = False) -> None:
+        """Ask GitHub for the latest release. The automatic check is silent unless there is news."""
+        if self._update_check is not None:
+            return
+        if not manual and not self.settings.check_updates:
+            return
+        self.update_state = ("checking", "", "")
+        self.update_state_changed.emit()
+        check = updates.UpdateCheck(self.settings.update_repo, __version__, self)
+        check.result.connect(lambda state, version, url: self._on_update_result(state, version, url, manual))
+        self._update_check = check
+        check.start()
+
+    def _on_update_result(self, state: str, version: str, url: str, manual: bool) -> None:
+        self._update_check = None
+        self.update_state = (state, version, url)
+        self.title_bar.set_update(version if state == updates.NEWER else "")
+        if state == updates.NEWER:
+            if self._update_notified != version:
+                self._update_notified = version
+                self.toast(f"Version {version} is available. Click “Update” at the top to download it.", "info")
+        elif manual and state == updates.CURRENT:
+            self.toast(f"You are up to date (v{__version__}).", "success")
+        elif manual:
+            self.toast("Could not check for updates. Check your internet connection.", "warning")
+        self.update_state_changed.emit()
+
+    def open_update_page(self) -> None:
+        url = self.update_state[2]
+        if url:
+            QDesktopServices.openUrl(QUrl(url))
 
     def set_update_repo(self, repo: str) -> None:
         self.settings = self.store.update(self.settings, update_repo=repo)
@@ -998,9 +1114,46 @@ class MainWindow(QMainWindow):
             "duration": int(seconds),
             "map": started[1],
             "tunnel": started[2],
+            "peak": self._peak_players if mode == "create" else 0,
         }
         history = [entry, *self.settings.history][:MAX_HISTORY]
         self.settings = self.store.update(self.settings, history=history)
+
+    def export_settings(self, path: str) -> None:
+        try:
+            backup.export_to(Path(path), self.settings)
+        except OSError:
+            self.toast("Could not write the file.", "error")
+            return
+        self.toast("Settings exported.", "success")
+
+    def import_settings(self, path: str) -> None:
+        if self.autopilot.active:
+            self.toast("Stop the running 24/7 server before importing settings.", "warning")
+            return
+        try:
+            values = backup.read_import(Path(path))
+        except backup.BackupError:
+            self.toast("That file is not a valid RSG LocalHost settings export.", "error")
+            return
+        reply = QMessageBox.question(
+            self,
+            "Import settings",
+            "Replace your current settings and profiles with the ones in this file? Your Discord sign-in and Studio path are kept.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        if "auto_feature_enabled" in values:
+            values["auto_feature_asked"] = True
+        self.settings = self.store.update(self.settings, **values)
+        brand.set_theme(self.settings.background_theme)
+        self.set_appearance()
+        self.set_language(self.settings.language)
+        self.set_background_theme(self.settings.background_theme)
+        self.toast("Settings imported.", "success")
+        self.navigate("settings")
 
     def clear_history(self) -> None:
         self.settings = self.store.update(self.settings, history=[])
@@ -1349,7 +1502,7 @@ class MainWindow(QMainWindow):
             except RuntimeError:
                 pass
             self._toast = None
-        self._toast = Toast(text, tone, self)
+        self._toast = Toast(tr(text), tone, self)
         toast = self._toast
         toast.destroyed.connect(lambda: self._clear_toast_ref(toast))
         self._position_toast()
@@ -1405,7 +1558,7 @@ class MainWindow(QMainWindow):
         studio = self.studio_path or ""
         text = build_diagnostics(
             mode="Server (host)" if mode == "create" else "Client (join)",
-            status=page.status_label.text(),
+            status=i18n.source_text(page.status_label),
             uptime=format_uptime(seconds) if seconds is not None else "-",
             port=port,
             tunnel_set=tunnel_set,

@@ -41,10 +41,17 @@ class IconButton(QPushButton):
         super().__init__()
         self.setProperty("variant", variant)
         self.setCursor(QtCursor.pointing_hand())
-        self.setIcon(app_icon(icon, "#f4f8ff" if variant == "chromeDanger" else "#8ea2c7"))
+        self._icon_name = icon
+        self._variant = variant
+        self.restyle()
         self.setIconSize(QSize(13, 13))
         self.setToolTip(tooltip)
         self.setFixedSize(28 if variant == "inline" else 32, 28 if variant == "inline" else 32)
+
+
+    def restyle(self) -> None:
+        """Repaint the icon with the current palette (after a mode / accent change)."""
+        self.setIcon(app_icon(self._icon_name, "#f4f8ff" if self._variant == "chromeDanger" else "#8ea2c7"))
 
 
 class QtCursor:

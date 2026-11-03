@@ -7,9 +7,12 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 
 from app.core.settings import SettingsStore
 from app.core.studio import generate_guid, get_studio_path, launch_server
+from app.styles import palette
 from app.styles.theme import apply_theme
 from app.ui.splash import StartupSplash
 from app.ui.window import MainWindow
+from app.core import i18n
+from app.widgets import brand
 
 
 def main() -> int:
@@ -36,7 +39,12 @@ def main() -> int:
     qt_app = QApplication(sys.argv)
     qt_app.setApplicationName("RSG LocalHost")
     qt_app.setOrganizationName("LocalHost")
+    saved = SettingsStore().load()
+    palette.configure(saved.appearance, saved.accent)
     apply_theme(qt_app)
+    brand.set_theme(saved.background_theme)
+    i18n.install_qt_hooks()
+    i18n.set_language(saved.language)
 
     # Only one RSG LocalHost per PC: a second copy would try to create a second server on the same port.
     lock = QLockFile(QDir.temp().filePath("rsg-localhost.lock"))

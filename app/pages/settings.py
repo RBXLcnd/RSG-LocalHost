@@ -11,10 +11,15 @@ from app.widgets.buttons import AppButton
 from app.widgets.fields import ReadOnlyPath
 from app.widgets.status import StatusDot
 from app.widgets.toggle import ToggleSwitch
+from app import __version__
 from app.widgets.admin_panel import AdminPanel
+from app.widgets.theme_picker import ThemePicker
+from app.widgets.accent_picker import AppearancePicker
 
 
 class SettingsPage(Page):
+    SCROLL = True
+
     def __init__(self, window) -> None:
         super().__init__()
         self.window = window
@@ -113,10 +118,137 @@ class SettingsPage(Page):
         self.root.addWidget(section_label("24/7"))
         self.root.addWidget(card(auto_row, (24, 16, 24, 16)))
 
+        theme_text = QVBoxLayout()
+        theme_text.setSpacing(3)
+        theme_title = QLabel("Background theme")
+        theme_title.setObjectName("fieldLabel")
+        theme_hint = QLabel("Pick the look of the app window. It applies instantly and is remembered.")
+        theme_hint.setObjectName("fieldHint")
+        theme_hint.setWordWrap(True)
+        theme_text.addWidget(theme_title)
+        theme_text.addWidget(theme_hint)
+        look_text = QVBoxLayout()
+        look_text.setSpacing(3)
+        look_title = QLabel("Mode and accent color")
+        look_title.setObjectName("fieldLabel")
+        look_hint = QLabel("Switch between the dark and light look and pick the highlight color. It applies instantly.")
+        look_hint.setObjectName("fieldHint")
+        look_hint.setWordWrap(True)
+        look_text.addWidget(look_title)
+        look_text.addWidget(look_hint)
+        self.appearance_picker = AppearancePicker(window.settings.appearance, window.settings.accent)
+        self.appearance_picker.mode_selected.connect(lambda m: window.set_appearance(mode=m))
+        self.appearance_picker.accent_selected.connect(lambda c: window.set_appearance(accent=c))
+        look_col = QVBoxLayout()
+        look_col.setSpacing(12)
+        look_col.addLayout(look_text)
+        look_col.addWidget(self.appearance_picker)
+        self.theme_picker = ThemePicker(window.settings.background_theme)
+        self.theme_picker.theme_selected.connect(window.set_background_theme)
+        theme_col = QVBoxLayout()
+        theme_col.setSpacing(14)
+        theme_col.addLayout(theme_text)
+        theme_col.addWidget(self.theme_picker)
+        self.root.addWidget(section_label("Appearance"))
+        self.root.addWidget(card(look_col, (24, 16, 24, 18)))
+        self.root.addWidget(card(theme_col, (24, 18, 24, 20)))
+
+        upd_text = QVBoxLayout()
+        upd_text.setSpacing(3)
+        upd_title = QLabel("Check for updates automatically")
+        upd_title.setObjectName("fieldLabel")
+        upd_hint = QLabel(
+            "Asks GitHub for the latest release when the app starts (and every few hours). "
+            "It only tells you: nothing is downloaded or installed by itself."
+        )
+        upd_hint.setObjectName("fieldHint")
+        upd_hint.setWordWrap(True)
+        upd_text.addWidget(upd_title)
+        upd_text.addWidget(upd_hint)
+        self.update_toggle = ToggleSwitch(window.settings.check_updates)
+        self.update_toggle.toggled.connect(window.set_check_updates)
+        upd_row = QHBoxLayout()
+        upd_row.setSpacing(18)
+        upd_row.addLayout(upd_text, 1)
+        upd_row.addWidget(self.update_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        self.update_status = QLabel()
+        self.update_status.setObjectName("fieldHint")
+        self.update_check_button = AppButton("Check now", "refresh", "secondary")
+        self.update_check_button.clicked.connect(lambda: window.check_for_updates(manual=True))
+        self.update_download_button = AppButton("Download", "arrow-right", "primary")
+        self.update_download_button.clicked.connect(window.open_update_page)
+        upd_actions = QHBoxLayout()
+        upd_actions.setSpacing(10)
+        upd_actions.addWidget(self.update_status, 1)
+        upd_actions.addWidget(self.update_check_button)
+        upd_actions.addWidget(self.update_download_button)
+        upd_col = QVBoxLayout()
+        upd_col.setSpacing(14)
+        upd_col.addLayout(upd_row)
+        upd_col.addLayout(upd_actions)
+        self.root.addWidget(section_label("Updates"))
+        self.root.addWidget(card(upd_col, (24, 16, 24, 16)))
+        window.update_state_changed.connect(self._refresh_update)
+        self._refresh_update()
+
+        bak_text = QVBoxLayout()
+        bak_text.setSpacing(3)
+        bak_title = QLabel("Export or import your settings")
+        bak_title.setObjectName("fieldLabel")
+        bak_hint = QLabel(
+            "Saves your profiles, tunnels, 24/7 options, theme and language to a file you can keep or move to another PC. "
+            "Your Discord sign-in and Studio path are never included."
+        )
+        bak_hint.setObjectName("fieldHint")
+        bak_hint.setWordWrap(True)
+        bak_text.addWidget(bak_title)
+        bak_text.addWidget(bak_hint)
+        export_btn = AppButton("Export", "arrow-right", "secondary")
+        export_btn.clicked.connect(self._export)
+        import_btn = AppButton("Import", "folder", "secondary")
+        import_btn.clicked.connect(self._import)
+        bak_row = QHBoxLayout()
+        bak_row.setSpacing(10)
+        bak_row.addLayout(bak_text, 1)
+        bak_row.addWidget(export_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        bak_row.addWidget(import_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.root.addWidget(section_label("Backup"))
+        self.root.addWidget(card(bak_row, (24, 16, 24, 16)))
+
         self.admin_panel = AdminPanel(window.settings.update_repo)
         self.admin_panel.repo_saved.connect(window.set_update_repo)
         self.root.addWidget(self.admin_panel)
         self.root.addStretch()
+
+    def _refresh_update(self) -> None:
+        state, version, _url = self.window.update_state
+        busy = state == "checking"
+        self.update_check_button.setEnabled(not busy)
+        self.update_download_button.setVisible(state == "newer")
+        if state == "newer":
+            text = f"Version {version} is available."
+        elif state == "current":
+            text = f"You are up to date (v{__version__})."
+        elif state == "checking":
+            text = "Checking..."
+        elif state == "error":
+            text = "Could not check for updates."
+        else:
+            text = f"Version v{__version__}"
+        self.update_status.setText(text)
+
+    def _export(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export settings", str(Path.home() / "rsg-localhost-settings.json"), "JSON (*.json)"
+        )
+        if path:
+            self.window.export_settings(path)
+
+    def _import(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "Import settings", str(Path.home()), "JSON (*.json)")
+        if path:
+            self.window.import_settings(path)
 
     def _on_auto_feature(self, enabled: bool) -> None:
         if not self.window.set_auto_feature(enabled):

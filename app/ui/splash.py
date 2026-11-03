@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, Signal
 from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
 
+from app.styles import palette
 from app.widgets.brand import BrandMark, GlowBackground
 
 
@@ -48,7 +49,7 @@ class StartupSplash(QWidget):
         layout.addStretch()
 
         self.setStyleSheet(
-            """
+            palette.qss("""
             QLabel#splashTitle {
               color: #f4f8ff;
               font-family: "Bahnschrift", "Segoe UI";
@@ -71,7 +72,7 @@ class StartupSplash(QWidget):
               background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #00b2ff, stop:1 #1f4fff);
               border-radius: 4px;
             }
-            """
+            """)
         )
 
         self.timer = QTimer(self)

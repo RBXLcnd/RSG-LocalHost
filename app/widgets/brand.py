@@ -4,14 +4,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import (
-    QBrush, QColor, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient,
-)
+from PySide6.QtGui import QBrush, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QWidget
 
-CYAN = QColor("#00b2ff")
-BLUE = QColor("#1f5bff")
-BG = QColor("#03060d")
+from PySide6.QtGui import QColor as QtGuiColor
+from app.styles import palette
+from app.styles.palette import qcolor as QColor
+
+from app.widgets import backgrounds
+
 
 LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "logo.png"
 _logo_cache: QPixmap | None = None
@@ -63,8 +64,6 @@ class BrandMark(QWidget):
     original logo.
     """
 
-    RING = QColor("#1e9bff")
-
     def __init__(self, size: int = 34) -> None:
         super().__init__()
         self.setFixedSize(int(size * 1.5), size)
@@ -79,6 +78,10 @@ class BrandMark(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         dpr = self.devicePixelRatioF()
         w, h = self.width(), self.height()
+        if palette.is_light():  # the logo is made for dark surfaces: give it a dark plate
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QtGuiColor("#0a1630"))
+            p.drawRoundedRect(QRectF(0, 3, w, h - 6), 9, 9)
         scaled = pm.scaled(
             int(w * dpr), int(h * dpr),
             Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation,
@@ -89,8 +92,21 @@ class BrandMark(QWidget):
         p.drawPixmap(QPointF(x, y), scaled)
 
 
+_theme = "classic"
+
+
+def set_theme(key: str) -> None:
+    """Choose the window background (a key of backgrounds.THEMES; unknown -> classic)."""
+    global _theme
+    _theme = key if key in backgrounds.THEMES else backgrounds.DEFAULT_THEME
+
+
+def get_theme() -> str:
+    return _theme
+
+
 class GlowBackground(QWidget):
-    """Near-black base with blue smoke and diagonal neon streaks in corners."""
+    """Window background, painted by the theme chosen in Settings > Appearance."""
 
     radius = 0  # >0: clip to a rounded rect and draw a neon border (splash)
 
@@ -102,28 +118,7 @@ class GlowBackground(QWidget):
             clip = QPainterPath()
             clip.addRoundedRect(QRectF(0.5, 0.5, w - 1, h - 1), self.radius, self.radius)
             p.setClipPath(clip)
-        k = min(1.0, max(w, h) / 1000)
-        p.fillRect(self.rect(), BG)
-
-        for cx, cy, r, a in ((w, 0, max(w, h) * 0.55, 46), (0, h, max(w, h) * 0.5, 40),
-                             (w * 0.62, h * 0.55, max(w, h) * 0.35, 14)):
-            g = QRadialGradient(QPointF(cx, cy), r)
-            g.setColorAt(0, QColor(20, 90, 255, a))
-            g.setColorAt(1, QColor(20, 90, 255, 0))
-            p.fillRect(self.rect(), QBrush(g))
-
-        def streak(x1, y1, x2, y2, width, alpha):
-            g = QLinearGradient(x1, y1, x2, y2)
-            g.setColorAt(0, QColor(30, 110, 255, 0))
-            g.setColorAt(0.5, QColor(40, 130, 255, alpha))
-            g.setColorAt(1, QColor(30, 110, 255, 0))
-            p.setPen(QPen(QBrush(g), width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
-
-        streak(w - 260 * k, 0, w, 210 * k, 2.0, 150)
-        streak(w - 190 * k, 0, w, 150 * k, 1.0, 90)
-        streak(0, h - 170 * k, 170 * k, h, 2.0, 130)
-        streak(0, h - 250 * k, 250 * k, h, 1.0, 80)
+        backgrounds.THEMES[_theme][1](p, w, h)
 
         if self.radius:
             p.setClipping(False)
@@ -150,7 +145,7 @@ def make_app_icon(active: bool = False) -> QIcon:
             p.drawPixmap((size - scaled.width()) // 2, (size - scaled.height()) // 2, scaled)
         if active:
             u = size / 64.0
-            p.setPen(QPen(BG, 3 * u))
+            p.setPen(QPen(QColor("#03060d"), 3 * u))
             p.setBrush(QColor("#2ee6a6"))
             p.drawEllipse(QRectF(40 * u, 40 * u, 21 * u, 21 * u))
         p.end()

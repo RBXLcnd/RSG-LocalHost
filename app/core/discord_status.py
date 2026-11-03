@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+import time
 from datetime import datetime, timezone
 
 from app.core.api import ApiError, post_status
@@ -24,11 +25,34 @@ _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="discord-status
 _key = ""
 _name = ""
 _tunnel = ""
+_private = False
+_players: int | None = None
+_players_at = 0.0
+PLAYERS_FRESH_SECONDS = 150  # the game reports every 30 s; older than this = unknown
 
 
 def set_session(key: str) -> None:
     global _key
     _key = (key or "").strip()
+
+
+def set_private(private: bool) -> None:
+    """Private server: nothing is published to Discord, so it never shows in /server-status."""
+    global _private
+    _private = bool(private)
+
+
+def set_players(count: int | None) -> None:
+    """Latest player count reported by the game (see player_count.py)."""
+    global _players, _players_at
+    _players = count
+    _players_at = time.monotonic()
+
+
+def current_players() -> int | None:
+    if _players is None or time.monotonic() - _players_at > PLAYERS_FRESH_SECONDS:
+        return None
+    return _players
 
 
 def set_identity(name: str, tunnel: str) -> None:
@@ -78,11 +102,13 @@ def push_status(
     cycle_hours: float | None = None,
 ) -> None:
     """Fire-and-forget. Datetimes should be timezone-aware (or UTC)."""
+    if _private:
+        return
     if not _key or not _name:
         if log_fn:
             log_fn("Discord status: not signed in or no server name, nothing was published.", "warn")
         return
-    body: dict = {"name": _name, "online": online}
+    body: dict = {"name": _name, "online": online, "players": current_players() if online else None}
     if _tunnel:
         body["tunnel"] = _tunnel
     if map_name is not None:
