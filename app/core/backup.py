@@ -20,7 +20,7 @@ FORMAT = "rsg-localhost-settings"
 EXPORT_KEYS = (
     "user_id", "host_tunnel", "join_tunnel", "server_port", "place_path",
     "recent_tunnels", "recent_maps", "profiles",
-    "notify_ready", "check_updates", "language", "background_theme", "appearance", "accent",
+    "notify_ready", "check_updates", "language", "background_theme", "appearance", "accent", "animations",
     "server_name",
     "auto_feature_enabled", "auto_enabled", "auto_private", "auto_on_hours", "auto_off_hours", "auto_maps",
 )

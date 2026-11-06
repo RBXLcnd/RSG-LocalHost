@@ -29,6 +29,9 @@ QPushButton[tab="true"] {
   font-weight: 500;
   background: transparent;
 }
+QPushButton[tab="true"][compact="true"] {
+  padding: 0 8px 0 7px;
+}
 QPushButton[tab="true"]:hover {
   color: #f4f8ff;
   background: rgba(16,36,78,0.55);
@@ -36,9 +39,10 @@ QPushButton[tab="true"]:hover {
 QPushButton[tab="true"][active="true"] {
   color: #f4f8ff;
   font-weight: 700;
-  border-bottom: 2px solid #00b2ff;
+  border-bottom: 2px solid transparent;
   background: rgba(0,140,255,0.10);
 }
+QFrame#navIndicator { background: #00b2ff; border: 0; }
 
 /* ---------- footer / status strip ---------- */
 QFrame#statusStrip {
@@ -413,6 +417,23 @@ QTextEdit#logConsole {
   selection-background-color: #173164;
 }
 
+QPushButton#legendChip {
+  background: rgba(8,16,34,0.85);
+  border: 1px solid #173164;
+  border-radius: 12px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8ea2c7;
+  min-height: 18px;
+}
+QPushButton#legendChip:hover { background: rgba(16,36,78,0.7); }
+QPushButton#legendChip[level="error"]:checked { color: #ff5d73; border-color: #8a2d3b; background: rgba(255,93,115,0.10); }
+QPushButton#legendChip[level="warning"]:checked { color: #f5b942; border-color: #8a6a22; background: rgba(245,185,66,0.10); }
+QPushButton#legendChip[level="success"]:checked { color: #2ee6a6; border-color: #1f8f6d; background: rgba(46,230,166,0.10); }
+QPushButton#legendChip[level="info"]:checked { color: #4db8ff; border-color: #1d4a9c; background: rgba(30,155,255,0.12); }
+QPushButton#legendChip:!checked { color: #4c5f86; border-style: dashed; background: transparent; }
+
 QProgressBar#sessionProgress {
   background: rgba(8,16,34,0.85);
   border: 1px solid #173164;
@@ -551,4 +572,35 @@ QLabel#metricValue {
   color: #f4f8ff;
   font-size: 14pt;
   font-weight: 700;
+}
+
+/* ---------- contextual help ---------- */
+QPushButton#helpButton {
+  color: #4db8ff;
+  background: rgba(30,155,255,0.12);
+  border: 1px solid #1d4a9c;
+  border-radius: 10px;
+  padding: 0;
+  font-size: 9pt;
+  font-weight: 700;
+  min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px;
+}
+QPushButton#helpButton:hover, QPushButton#helpButton:focus {
+  color: #f4f8ff;
+  border-color: #4db8ff;
+  background: rgba(30,155,255,0.30);
+}
+QFrame#helpPopover {
+  background: #0a1426;
+  border: 1px solid #1d4a9c;
+  border-radius: 10px;
+}
+QLabel#helpTitle { color: #f4f8ff; font-size: 11pt; font-weight: 700; background: transparent; }
+QLabel#helpBody { color: #b7c6e4; background: transparent; }
+QLabel#helpExample {
+  color: #8ea2c7;
+  background: rgba(30,155,255,0.08);
+  border: 1px solid #173164;
+  border-radius: 6px;
+  padding: 8px 10px;
 }

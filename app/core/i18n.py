@@ -13,14 +13,29 @@ from __future__ import annotations
 
 import re
 
-from app.core.i18n_pt import EXACT, PATTERNS
-
-LANGUAGES = {"en": "English", "pt": "Português"}
+LANGUAGES = {"en": "English", "pt": "Português", "pt-BR": "Português (Brasil)", "es": "Español"}
+SHORT = {"en": "EN", "pt": "PT", "pt-BR": "BR", "es": "ES"}  # letters on the language button
 
 _lang = "en"
 _cache: dict[str, str] = {}
-_upper = {k.upper(): v for k, v in EXACT.items()}
-_reverse = {v: k for k, v in EXACT.items()}
+EXACT: dict[str, str] = {}
+PATTERNS: dict[str, str] = {}
+_upper: dict[str, str] = {}
+_reverse: dict[str, str] = {}
+_patterns: list = []
+
+
+def _tables(lang: str) -> tuple[dict[str, str], dict[str, str]]:
+    """The (exact, pattern) translation tables of a language, imported when first needed."""
+    if lang == "pt":
+        from app.core import i18n_pt as module
+    elif lang == "pt-BR":
+        from app.core import i18n_ptbr as module
+    elif lang == "es":
+        from app.core import i18n_es as module
+    else:
+        return {}, {}
+    return module.EXACT, module.PATTERNS
 
 
 def _compile(template: str) -> re.Pattern[str]:
@@ -28,7 +43,6 @@ def _compile(template: str) -> re.Pattern[str]:
     return re.compile("^" + "(.+?)".join(re.escape(p) for p in parts) + "$", re.DOTALL)
 
 
-_patterns = sorted(((_compile(k), v) for k, v in PATTERNS.items()), key=lambda kv: -len(kv[0].pattern))
 _table_re = re.compile(r'^(<table width="[^"]*"><tr><td>)(.*)(</td></tr></table>)$', re.DOTALL)
 
 
@@ -37,8 +51,12 @@ def get_language() -> str:
 
 
 def set_language(lang: str) -> None:
-    global _lang
+    global _lang, EXACT, PATTERNS, _upper, _reverse, _patterns
     _lang = lang if lang in LANGUAGES else "en"
+    EXACT, PATTERNS = _tables(_lang)
+    _upper = {k.upper(): v for k, v in EXACT.items()}
+    _reverse = {v: k for k, v in EXACT.items()}
+    _patterns = sorted(((_compile(k), v) for k, v in PATTERNS.items()), key=lambda kv: -len(kv[0].pattern))
     _cache.clear()
 
 

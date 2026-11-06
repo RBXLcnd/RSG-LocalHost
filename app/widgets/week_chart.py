@@ -8,6 +8,7 @@ from PySide6.QtGui import QFont, QLinearGradient, QPainter
 from app.styles.palette import qcolor as QColor
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+from app.core import motion
 from app.core.i18n import tr
 from app.core.uptime import format_uptime
 
@@ -22,6 +23,20 @@ class WeekChart(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setMouseTracking(True)
         self.setToolTip("")
+        self._grow = 0.0
+        motion.tween(self, 0.0, 1.0, 900, self._set_grow)
+
+    def _set_grow(self, value: float) -> None:
+        self._grow = value
+        self.update()
+
+    def _bar_progress(self, index: int) -> float:
+        """Bars rise one after the other: each one starts a little later than the one before."""
+        if self._grow >= 1.0:
+            return 1.0
+        count = max(1, len(self.days))
+        start = 0.45 * index / count
+        return max(0.0, min(1.0, (self._grow - start) / (1.0 - 0.45 + 0.45 / count)))
 
     def _slot(self, x: float) -> int:
         return max(0, min(len(self.days) - 1, int(x / max(1, self.width()) * len(self.days))))
@@ -48,13 +63,13 @@ class WeekChart(QWidget):
         p.setFont(font)
         for i, (day, seconds) in enumerate(self.days):
             cx = slot * i + slot / 2
-            height = chart_h * seconds / top if seconds else 0
+            height = chart_h * seconds / top * self._bar_progress(i) if seconds else 0
             track = QRectF(cx - bar_w / 2, 4, bar_w, chart_h)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(QColor(20, 40, 84, 140))
             p.drawRoundedRect(track, 5, 5)
             if seconds:
-                height = max(height, 6)
+                height = max(height, 6 * self._bar_progress(i))
                 bar = QRectF(cx - bar_w / 2, 4 + chart_h - height, bar_w, height)
                 grad = QLinearGradient(bar.topLeft(), bar.bottomLeft())
                 grad.setColorAt(0, QColor("#00b2ff"))

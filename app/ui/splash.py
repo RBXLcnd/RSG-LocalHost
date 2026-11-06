@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, QTimer, Signal
+
+from app.core import motion
 from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
 
 from app.styles import palette
@@ -81,6 +83,10 @@ class StartupSplash(QWidget):
     def start(self) -> None:
         self._center()
         self.show()
+        if not motion.enabled():  # no motion: no fake loading bar, hand over at once
+            self.progress.setValue(100)
+            QTimer.singleShot(0, self.finished.emit)
+            return
         self.timer.start(24)
 
     def _center(self) -> None:

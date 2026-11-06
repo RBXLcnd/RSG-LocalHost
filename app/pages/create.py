@@ -11,6 +11,7 @@ from app.core.discord_status import NAME_MAX, validate_name
 from app.pages.base import Page, card, divider, section_label
 from app.widgets.buttons import AppButton
 from app.widgets.fields import FormField
+from app.widgets.help import with_help
 from app.widgets.toggle import ToggleSwitch
 
 
@@ -114,11 +115,12 @@ class CreatePage(Page):
         if window.settings.auto_feature_enabled:
             form.addWidget(divider())
             form.addLayout(self._build_auto_section(window))
+        form.addStretch(1)  # spare height stays empty instead of stretching the fields
 
         # ---- right: live summary + launch ----
         summary = QVBoxLayout()
         summary.setSpacing(10)
-        summary.addWidget(section_label("Summary"))
+        summary.addWidget(section_label("Summary", "create_summary"))
         self._summary: dict[str, QLabel] = {}
         for key in ("User ID", "Tunnel", "Port", "Map"):
             name = QLabel(key)
@@ -163,7 +165,7 @@ class CreatePage(Page):
         self.account_status = QLabel("")
         self.account_status.setObjectName("fieldHint")
         self.account_status.setWordWrap(True)
-        text.addWidget(title)
+        text.addWidget(with_help(title, "create_account"))
         text.addWidget(self.account_status)
         self.account_button = AppButton("", "user", "secondary")
         self.account_button.clicked.connect(self._on_account_clicked)
@@ -216,7 +218,7 @@ class CreatePage(Page):
         )
         hint.setObjectName("fieldHint")
         hint.setWordWrap(True)
-        text.addWidget(title)
+        text.addWidget(with_help(title, "create_auto"))
         text.addWidget(hint)
         self.auto_toggle = ToggleSwitch(settings.auto_enabled)
         header = QHBoxLayout()
@@ -238,7 +240,7 @@ class CreatePage(Page):
         rotation_box.setSpacing(8)
         rotation_label = QLabel("Map rotation")
         rotation_label.setObjectName("fieldLabel")
-        rotation_box.addWidget(rotation_label)
+        rotation_box.addWidget(with_help(rotation_label, "create_rotation"))
         rotation_box.addWidget(self.rotation_button)
         rotation_box.addStretch()
 
@@ -261,7 +263,7 @@ class CreatePage(Page):
         )
         private_hint.setObjectName("fieldHint")
         private_hint.setWordWrap(True)
-        private_text.addWidget(private_title)
+        private_text.addWidget(with_help(private_title, "create_private"))
         private_text.addWidget(private_hint)
         self.private_toggle = ToggleSwitch(settings.auto_private)
         private_row = QHBoxLayout()

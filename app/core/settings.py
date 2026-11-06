@@ -23,10 +23,11 @@ class AppSettings:
     notify_ready: bool = True
     onboarded: bool = False  # the first-run assistant was shown (or skipped)
     check_updates: bool = True  # ask GitHub for a newer release at startup
-    language: str = "en"  # "en" or "pt" (see app/core/i18n.py)
+    language: str = "en"  # "en", "pt", "pt-BR" or "es" (see app/core/i18n.py)
     background_theme: str = "classic"  # window background, see app/widgets/backgrounds.py
     appearance: str = "dark"  # "dark" or "light" (see app/styles/palette.py)
     accent: str = "#1e9bff"  # accent colour, any #rrggbb
+    animations: bool = True  # False: no motion anywhere (see app/core/motion.py)
     update_repo: str = ""
     profiles: list[dict[str, str]] = field(default_factory=list)
     history: list[dict[str, Any]] = field(default_factory=list)
@@ -122,7 +123,7 @@ class SettingsStore:
                         settings.onboarded = False
                     if not isinstance(settings.check_updates, bool):
                         settings.check_updates = True
-                    if settings.language not in ("en", "pt"):
+                    if settings.language not in ("en", "pt", "pt-BR", "es"):
                         settings.language = "en"
                     if not isinstance(settings.background_theme, str):
                         settings.background_theme = "classic"
@@ -141,6 +142,8 @@ class SettingsStore:
                     for key in ("auto_enabled", "auto_private", "auto_feature_enabled", "auto_feature_asked"):
                         if not isinstance(getattr(settings, key), bool):
                             setattr(settings, key, False)
+                    if not isinstance(settings.animations, bool):
+                        settings.animations = True
                     for key, default in (("auto_on_hours", "4"), ("auto_off_hours", "2")):
                         if not isinstance(getattr(settings, key), str) or not getattr(settings, key).strip():
                             setattr(settings, key, default)

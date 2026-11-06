@@ -32,7 +32,7 @@ class SettingsPage(Page):
 
         left = QVBoxLayout()
         left.setSpacing(10)
-        left.addWidget(section_label("Studio executable"))
+        left.addWidget(section_label("Studio executable", "settings_studio"))
         left.addWidget(ReadOnlyPath(window.studio_path))
 
         file_name = Path(window.studio_path).name if window.studio_path else "Not selected"
@@ -94,7 +94,7 @@ class SettingsPage(Page):
         notify_row.setSpacing(18)
         notify_row.addLayout(notify_text, 1)
         notify_row.addWidget(self.notify_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
-        self.root.addWidget(section_label("Notifications"))
+        self.root.addWidget(section_label("Notifications", "settings_notifications"))
         self.root.addWidget(card(notify_row, (24, 16, 24, 16)))
 
         auto_text = QVBoxLayout()
@@ -115,7 +115,7 @@ class SettingsPage(Page):
         auto_row.setSpacing(18)
         auto_row.addLayout(auto_text, 1)
         auto_row.addWidget(self.auto_feature_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
-        self.root.addWidget(section_label("24/7"))
+        self.root.addWidget(section_label("24/7", "settings_auto"))
         self.root.addWidget(card(auto_row, (24, 16, 24, 16)))
 
         theme_text = QVBoxLayout()
@@ -149,9 +149,29 @@ class SettingsPage(Page):
         theme_col.setSpacing(14)
         theme_col.addLayout(theme_text)
         theme_col.addWidget(self.theme_picker)
-        self.root.addWidget(section_label("Appearance"))
+        self.root.addWidget(section_label("Appearance", "settings_appearance"))
         self.root.addWidget(card(look_col, (24, 16, 24, 18)))
         self.root.addWidget(card(theme_col, (24, 18, 24, 20)))
+
+        motion_text = QVBoxLayout()
+        motion_text.setSpacing(3)
+        motion_title = QLabel("Animations")
+        motion_title.setObjectName("fieldLabel")
+        motion_hint = QLabel(
+            "Page fades, the sliding menu line, counting numbers, pulsing dots and button glow. "
+            "Turn it off for no motion at all (lighter on slow PCs, easier on the eyes)."
+        )
+        motion_hint.setObjectName("fieldHint")
+        motion_hint.setWordWrap(True)
+        motion_text.addWidget(motion_title)
+        motion_text.addWidget(motion_hint)
+        self.motion_toggle = ToggleSwitch(window.settings.animations)
+        self.motion_toggle.toggled.connect(window.set_animations)
+        motion_row = QHBoxLayout()
+        motion_row.setSpacing(18)
+        motion_row.addLayout(motion_text, 1)
+        motion_row.addWidget(self.motion_toggle, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.root.addWidget(card(motion_row, (24, 16, 24, 16)))
 
         upd_text = QVBoxLayout()
         upd_text.setSpacing(3)
@@ -187,7 +207,7 @@ class SettingsPage(Page):
         upd_col.setSpacing(14)
         upd_col.addLayout(upd_row)
         upd_col.addLayout(upd_actions)
-        self.root.addWidget(section_label("Updates"))
+        self.root.addWidget(section_label("Updates", "settings_updates"))
         self.root.addWidget(card(upd_col, (24, 16, 24, 16)))
         window.update_state_changed.connect(self._refresh_update)
         self._refresh_update()
@@ -213,13 +233,13 @@ class SettingsPage(Page):
         bak_row.addLayout(bak_text, 1)
         bak_row.addWidget(export_btn, 0, Qt.AlignmentFlag.AlignVCenter)
         bak_row.addWidget(import_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        self.root.addWidget(section_label("Backup"))
+        self.root.addWidget(section_label("Backup", "settings_backup"))
         self.root.addWidget(card(bak_row, (24, 16, 24, 16)))
 
         self.admin_panel = AdminPanel(window.settings.update_repo)
         self.admin_panel.repo_saved.connect(window.set_update_repo)
         self.root.addWidget(self.admin_panel)
-        self.root.addStretch()
+        self.root.addStretch(1)
 
     def _refresh_update(self) -> None:
         state, version, _url = self.window.update_state

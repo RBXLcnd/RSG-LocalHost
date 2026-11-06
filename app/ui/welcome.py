@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QStackedWidget,
@@ -88,19 +89,19 @@ class WelcomeDialog(QDialog):
             "Host Roblox Studio servers for your friends in a few clicks. This short setup takes about a minute and you can change everything later in Settings.",
         )
         layout.addWidget(_label("Language", "fieldLabel"))
-        row = QHBoxLayout()
+        grid = QGridLayout()
+        grid.setSpacing(8)
         self.lang_group = QButtonGroup(self)
         self.lang_group.setExclusive(True)
-        for code, name in (("en", "English"), ("pt", "Português")):
+        for index, (code, name) in enumerate(i18n.LANGUAGES.items()):
             button = AppButton(name, None, "secondary")
             button.setCheckable(True)
             button.setChecked(i18n.get_language() == code)
             button.setProperty("lang", code)
             self.lang_group.addButton(button)
             button.clicked.connect(lambda _=False, c=code: self._set_language(c))
-            row.addWidget(button)
-        row.addStretch()
-        layout.addLayout(row)
+            grid.addWidget(button, index // 2, index % 2)
+        layout.addLayout(grid)
         layout.addStretch()
         return page
 

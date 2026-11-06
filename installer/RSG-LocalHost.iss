@@ -41,6 +41,13 @@ Source: "..\dist\RSG LocalHost\*"; DestDir: "{app}"; Flags: ignoreversion recurs
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
+[Registry]
+; rsg://join/host:port invite links open RSG LocalHost (per user). The app also registers itself on start.
+Root: HKCU; Subkey: "Software\Classes\rsg"; ValueType: string; ValueName: ""; ValueData: "URL:RSG LocalHost"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\rsg"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\rsg\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"",0"
+Root: HKCU; Subkey: "Software\Classes\rsg\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""
+
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 

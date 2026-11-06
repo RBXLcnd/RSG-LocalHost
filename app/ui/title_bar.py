@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QEasingCurve, QEvent, QPropertyAnimation, QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtWidgets import QAbstractButton, QFrame, QHBoxLayout, QPushButton, QWidget
 
+from app.core import i18n, motion
 from app.widgets.brand import BrandMark
 from app.widgets.buttons import IconButton
 from app.widgets.icons import app_icon
@@ -50,6 +51,7 @@ class TopNav(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._tabs: dict[str, NavTab] = {}
+        self._current: str | None = None
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
@@ -63,11 +65,81 @@ class TopNav(QWidget):
             tab = NavTab(key, label, icon)
             tab.clicked.connect(lambda checked=False, k=key: self.navigate.emit(k))
             self._tabs[key] = tab
+            tab.installEventFilter(self)
             layout.addWidget(tab)
+
+        # The accent line under the current tab: one widget that slides from tab to tab.
+        self._indicator = QFrame(self)
+        self._indicator.setObjectName("navIndicator")
+        self._indicator.hide()
+        self._slide: QPropertyAnimation | None = None
+
+    def _target_rect(self) -> QRect | None:
+        tab = self._tabs.get(self._current or "")
+        if tab is None or tab.width() <= 0:
+            return None
+        return QRect(tab.x(), tab.y() + tab.height() - 2, tab.width(), 2)
+
+    def _place_indicator(self, animate: bool) -> None:
+        rect = self._target_rect()
+        if rect is None:
+            self._indicator.hide()
+            return
+        if self._slide is not None:
+            self._slide.stop()
+            self._slide = None
+        first = not self._indicator.isVisible()
+        if animate and not first and motion.enabled() and self._indicator.geometry() != rect:
+            anim = QPropertyAnimation(self._indicator, b"geometry", self)
+            anim.setStartValue(self._indicator.geometry())
+            anim.setEndValue(rect)
+            anim.setDuration(280)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            anim.start()
+            self._slide = anim
+        else:
+            self._indicator.setGeometry(rect)
+        self._indicator.show()
+        self._indicator.raise_()
+
+    def eventFilter(self, obj, event) -> bool:
+        # a tab changed size or moved (language, compact mode, "Server" label): keep the line under it
+        if event.type() in (QEvent.Type.Resize, QEvent.Type.Move) and obj is self._tabs.get(self._current or ""):
+            sliding = self._slide is not None and self._slide.state() == QPropertyAnimation.State.Running
+            rect = self._target_rect()
+            if sliding and rect is not None:
+                self._slide.setEndValue(rect)  # the tab got bold/wider while we slide: aim at its new size
+            else:
+                self._place_indicator(animate=False)
+        return super().eventFilter(obj, event)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._place_indicator(animate=False)
+
+    def set_compact(self, compact: bool) -> None:
+        if bool(self._tabs["overview"].property("compact")) == compact:
+            return
+        for tab in self._tabs.values():
+            tab.setProperty("compact", compact)
+            tab.setIconSize(QSize(0, 0) if compact else QSize(15, 15))
+            tab.style().unpolish(tab)
+            tab.style().polish(tab)
+            tab.updateGeometry()
+
+    def full_width(self) -> int:
+        """Width the tabs need with their normal padding and icons."""
+        was = bool(self._tabs["overview"].property("compact"))
+        self.set_compact(False)
+        width = sum(t.sizeHint().width() for t in self._tabs.values()) + 2 * (len(self._tabs) - 1)
+        self.set_compact(was)
+        return width
 
     def set_current(self, key: str) -> None:
         for nav_key, tab in self._tabs.items():
             tab.set_active(nav_key == key)
+        self._current = key
+        self._place_indicator(animate=True)
 
     def set_session(
         self,
@@ -155,6 +227,17 @@ class TitleBar(QWidget):
         self.max_button.clicked.connect(self.maximize_requested)
         self.close_button.clicked.connect(self.close_requested)
 
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._fit_nav()
+
+    def _fit_nav(self) -> None:
+        # Space left for the tabs = whole bar minus everything that is not the nav.
+        other = 18 + 10 + 40 + 14 + 1 + 10 + 8 + 58 + 10 + 3 * (30 + 4) + 12
+        if not self.update_button.isHidden():
+            other += self.update_button.sizeHint().width()
+        self.nav.set_compact(self.nav.full_width() + other > self.width())
+
     def set_update(self, version: str) -> None:
         """Show the "Update vX" pill (empty version hides it)."""
         if version:
@@ -162,15 +245,13 @@ class TitleBar(QWidget):
             self.update_button.show()
         else:
             self.update_button.hide()
+        QTimer.singleShot(0, self._fit_nav)
 
     def set_language(self, lang: str) -> None:
-        """The button names the language it switches to (shown untranslated on purpose)."""
-        if lang == "pt":
-            self.lang_button.setText("EN")
-            self.lang_button.setToolTip("Switch to English")
-        else:
-            self.lang_button.setText("PT")
-            self.lang_button.setToolTip("Mudar para português")
+        """The button shows the current language; clicking it opens the list (names are never translated)."""
+        self.lang_button.setText(i18n.SHORT.get(lang, "EN"))
+        self.lang_button.setToolTip(i18n.LANGUAGES.get(lang, "English"))
+        QTimer.singleShot(50, self._fit_nav)
 
     def is_control_at(self, global_pos) -> bool:
         widget = self.childAt(self.mapFromGlobal(global_pos))

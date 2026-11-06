@@ -45,10 +45,16 @@ def card(layout, margins=(22, 20, 22, 20), name: str = "card") -> QFrame:
 panel = card
 
 
-def section_label(text: str) -> QLabel:
+def section_label(text: str, help: str = "") -> QWidget:
+    """Small caps section title. `help` is a topic from app.widgets.help: adds the "?" button."""
     label = QLabel(text.upper())
     label.setObjectName("sectionTitle")
-    return spaced(label, 2.0)
+    spaced(label, 2.0)
+    if not help:
+        return label
+    from app.widgets.help import with_help
+
+    return with_help(label, help)
 
 
 class Page(QWidget):
@@ -84,9 +90,16 @@ class Page(QWidget):
             shell.addStretch(1)
         else:
             shell.addWidget(column, 1)
+        self._column = column if self.MAX_WIDTH else None
         self.root = QVBoxLayout(column)
         self.root.setContentsMargins(0, 22, 0, 18)
         self.root.setSpacing(16)
+
+    def resizeEvent(self, event) -> None:
+        """Wide windows get a wider content column, so content does not sit tiny in the middle."""
+        super().resizeEvent(event)
+        if self._column is not None and self.MAX_WIDTH:
+            self._column.setMaximumWidth(max(self.MAX_WIDTH, min(1320, int(self.width() * 0.66))))
 
     def add_header(
         self,

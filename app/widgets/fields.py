@@ -51,6 +51,7 @@ class FormField(QFrame):
 
         self.input_shell = QFrame()
         self.input_shell.setObjectName("inputShell")
+        self.input_shell.setMinimumWidth(120)
         input_layout = QHBoxLayout(self.input_shell)
         input_layout.setContentsMargins(14, 0, 14, 0)
         input_layout.setSpacing(9)
@@ -99,7 +100,8 @@ class FormField(QFrame):
             root = QHBoxLayout(self)
             root.setContentsMargins(0, 0, 0, 0)
             root.setSpacing(20)
-            self.label_box.setFixedSize(120, 42)
+            self.label.setWordWrap(True)  # longer translations wrap instead of being cut
+            self.label_box.setFixedSize(128, 42)
             root.addWidget(self.label_box, 0, Qt.AlignmentFlag.AlignTop)
             right = QVBoxLayout()
             right.setSpacing(5)

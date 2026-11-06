@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import time
 
+import shiboken6
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QStackedLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QProgressBar, QPushButton, QStackedLayout, QVBoxLayout, QWidget
 
+from app.core import i18n, motion
 from app.core.uptime import format_uptime
 from app.pages.base import InfoStrip, Page, divider
 from app.widgets.buttons import AppButton
-from app.widgets.log_console import LogConsole
+from app.widgets.help import HelpButton
+from app.widgets.log_console import LEVELS, LogConsole
 from app.widgets.status import StatusDot
 
 
@@ -118,7 +121,10 @@ class SessionPage(Page):
         console_label = QLabel("Console")
         console_label.setObjectName("sectionTitle")
         header.addWidget(console_label)
-        header.addWidget(StatusDot("#2ee6a6", 6))
+        header.addWidget(HelpButton("console"))
+        streaming_dot = StatusDot("#2ee6a6", 6)
+        streaming_dot.set_pulsing(True)
+        header.addWidget(streaming_dot)
         streaming = QLabel("Streaming")
         streaming.setObjectName("fieldHint")
         header.addWidget(streaming)
@@ -136,11 +142,32 @@ class SessionPage(Page):
         )
         header.addWidget(self.diagnostics_button)
         session_root.addLayout(header)
+
+        # Legend: one chip per level, with a count. Clicking a chip hides or shows that level.
+        legend = QHBoxLayout()
+        legend.setSpacing(8)
+        self._chips: dict[str, QPushButton] = {}
+        for level in LEVELS:
+            chip = QPushButton()
+            chip.setObjectName("legendChip")
+            chip.setProperty("level", level)
+            chip.setCheckable(True)
+            chip.setChecked(True)
+            chip.setCursor(Qt.CursorShape.PointingHandCursor)
+            chip.setToolTip("Click to hide or show these lines")
+            chip.toggled.connect(lambda on, lv=level: self.console.set_level_visible(lv, on))
+            self._chips[level] = chip
+            legend.addWidget(chip)
+        legend.addStretch()
+        session_root.addLayout(legend)
+
         self.console_area = QWidget()
         console_layout = QVBoxLayout(self.console_area)
         console_layout.setContentsMargins(0, 0, 0, 0)
         self.console = LogConsole()
+        self.console.counts_changed.connect(self._update_legend)
         console_layout.addWidget(self.console)
+        self._update_legend()
         session_root.addWidget(self.console_area, 1)
 
         actions = QHBoxLayout()
@@ -160,6 +187,13 @@ class SessionPage(Page):
 
     def append_log(self, message: str, level: str = "info") -> None:
         self.console.append_log(message, level)
+
+    LEGEND_LABELS = {"error": "Errors", "warning": "Warnings", "success": "Success", "info": "Info"}
+
+    def _update_legend(self) -> None:
+        counts = self.console.counts()
+        for level, chip in self._chips.items():
+            chip.setText(f"{i18n.tr(self.LEGEND_LABELS[level])}  {counts[level]}")
 
     def mark_live(self) -> None:
         """Start the uptime clock (once). Not called while the loader is up or after a failure."""
@@ -200,10 +234,23 @@ class SessionPage(Page):
 
     def set_progress(self, value: int, text: str) -> None:
         safe_value = max(0, min(100, value))
-        self.progress.setValue(safe_value)
-        self.loader_progress.setValue(safe_value)
+        for bar in (self.progress, self.loader_progress):
+            self._glide(bar, safe_value)
         self.progress_status.setText(text)
         self.loader_status.setText(text)
+
+    @staticmethod
+    def _glide(bar: QProgressBar, target: int) -> None:
+        """Move a progress bar to `target` smoothly instead of jumping."""
+        old = getattr(bar, "_glide_anim", None)
+        if old is not None and shiboken6.isValid(old):  # finished animations delete themselves
+            old.stop()
+        start = bar.value()
+        if target <= start:  # going back (a new run) is instant
+            bar.setValue(target)
+            return
+        bar._glide_anim = motion.tween(bar, start, target, 380, lambda v: bar.setValue(round(v)),
+                                       on_done=lambda: bar.setValue(target))
 
     def set_console_visible(self, visible: bool) -> None:
         self.console_area.setVisible(visible)

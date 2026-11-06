@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, Qt
 from PySide6.QtWidgets import QFrame, QGraphicsOpacityEffect, QHBoxLayout, QLabel
 
+from app.core import motion
 from app.widgets.status import StatusDot
 
 
@@ -50,7 +51,7 @@ class Toast(QFrame):
 
     def _fade(self, start: float, end: float, duration: int) -> QPropertyAnimation:
         anim = QPropertyAnimation(self._opacity, b"opacity", self)
-        anim.setDuration(duration)
+        anim.setDuration(motion.ms(duration))
         anim.setStartValue(start)
         anim.setEndValue(end)
         anim.setEasingCurve(QEasingCurve.Type.OutCubic)

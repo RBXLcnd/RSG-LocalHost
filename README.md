@@ -20,9 +20,11 @@ The Discord key is stored encrypted with Windows (DPAPI), so only your Windows a
 
 **Look:** Settings > Appearance switches between dark and light mode and lets you pick the accent color (seven presets or any custom color). Background themes work in both modes.
 
+**Invite links:** the invite message has an `rsg://join/host:port` link. Opening it (or pasting it into the Join tunnel field) loads the address into the Join page; you still press Join. The installer registers the protocol for your Windows user, and the app re-registers it on start. Note: Discord does not make custom links like this clickable, so people can copy the link (or just the host:port) and paste it into the app.
+
 ## Language
 
-The app is in English. Click the **PT** button in the top right to switch the whole interface to Portuguese (and **EN** to go back). The choice is remembered. Console logs stay in English so they are easy to share when asking for help.
+The app is in English. Click the language button in the top right (EN / PT / BR / ES) and pick English, Português, Português (Brasil) or Español to switch the whole interface. The choice is remembered. Console logs stay in English so they are easy to share when asking for help.
 
 ## Requirements
 

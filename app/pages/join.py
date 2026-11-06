@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
+from app.core import protocol
 from app.pages.base import Page, Step, card, section_label, vline
 from app.widgets.buttons import AppButton, IconButton
 from app.widgets.fields import FormField
@@ -69,7 +70,7 @@ class RecentTunnels(QFrame):
         outer.setSpacing(6)
 
         head = QHBoxLayout()
-        head.addWidget(section_label("Recent tunnels"))
+        head.addWidget(section_label("Recent tunnels", "join_recent"))
         head.addStretch()
         clear = AppButton("Clear all", None, "ghost")
         clear.setMinimumHeight(26)
@@ -129,6 +130,7 @@ class JoinPage(Page):
             action=join,
         )
         self.tunnel.edit.returnPressed.connect(self._join)
+        self.tunnel.edit.textChanged.connect(self._maybe_link)  # pasting an rsg://join/... link fills in host:port
         bar = QVBoxLayout()
         bar.addWidget(self.tunnel)
 
@@ -160,7 +162,7 @@ class JoinPage(Page):
         steps.addWidget(vline())
         steps.addWidget(Step(3, "Console", "Incoming packets stream live in the connection console."), 1)
         self.root.addWidget(card(steps, (22, 18, 22, 16)))
-        self.root.addStretch()
+        self.root.addStretch(1)
 
     def set_checking(self, checking: bool) -> None:
         """Lock the form while the tunnel is being tested."""
@@ -179,6 +181,11 @@ class JoinPage(Page):
         self.check_label.style().polish(self.check_label)
         self.check_label.setText(text)
         self.check_box.setVisible(True)
+
+    def _maybe_link(self, text: str) -> None:
+        tunnel = protocol.parse_link(text)
+        if tunnel and tunnel != text:
+            self.tunnel.edit.setText(tunnel)
 
     def _join(self) -> None:
         if not self.tunnel.validate() or not self.tunnel.value():

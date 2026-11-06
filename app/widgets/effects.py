@@ -4,6 +4,7 @@ from PySide6.QtCore import QEasingCurve, QPropertyAnimation
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGraphicsDropShadowEffect, QWidget
 
+from app.core import motion
 from app.styles.palette import pal
 
 
@@ -35,6 +36,14 @@ def animate_glow(effect: QGraphicsDropShadowEffect, blur: int, alpha: int, durat
     """
     target_color = QColor(effect.color())
     target_color.setAlpha(alpha)
+    if not motion.enabled():  # no motion: jump straight there
+        for name in ("_blurAnim", "_colorAnim"):
+            running = effect.property(name)
+            if running is not None:
+                running.stop()
+        effect.setColor(target_color)
+        effect.setBlurRadius(blur)
+        return
 
     blur_anim = effect.property("_blurAnim")
     if blur_anim is None:

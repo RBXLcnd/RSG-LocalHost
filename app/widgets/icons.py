@@ -26,6 +26,7 @@ ICON_MAP = {
     "globe": "globe",
     "network": "network",
     "search": "search",
+    "heart": "heart",
 }
 
 

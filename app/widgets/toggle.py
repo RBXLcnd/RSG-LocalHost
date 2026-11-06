@@ -3,6 +3,7 @@ from __future__ import annotations
 from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QRectF, QSize, Qt
 from PySide6.QtGui import QPainter, QPen
 from PySide6.QtGui import QColor as RawColor
+from app.core import motion
 from app.styles.palette import qcolor as QColor
 from PySide6.QtWidgets import QAbstractButton
 
@@ -25,6 +26,9 @@ class ToggleSwitch(QAbstractButton):
 
     def _animate(self, checked: bool) -> None:
         self._anim.stop()
+        if not motion.enabled():
+            self._set_offset(1.0 if checked else 0.0)
+            return
         self._anim.setStartValue(self._offset)
         self._anim.setEndValue(1.0 if checked else 0.0)
         self._anim.start()

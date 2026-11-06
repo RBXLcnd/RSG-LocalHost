@@ -17,6 +17,20 @@ class Release:
 # Newest first. Add a Release at the top and bump app.__version__ for each new build.
 RELEASES: tuple[Release, ...] = (
     Release(
+        "2.4.1",
+        "2026-11-04",
+        (
+            (NEW, "Invite links: the invite message now includes an rsg://join/host:port link. Opening it (or pasting it in the tunnel field) loads the address into the Join page. It never connects by itself."),
+            (NEW, "Animations switch: Settings > Appearance > Animations turns every animation off (page fades, sliding line, counting numbers, pulsing dots, glow). It applies at once and is remembered."),
+            (NEW, "More motion: the line under the menu slides to the selected tab, the 7-day numbers count up and the chart bars rise, live dots pulse, progress bars glide and help panels fade in."),
+            (NEW, "Help buttons: a small ? next to the main sections (Settings, Create, the console) opens a short explanation with an example."),
+            (NEW, "Console colors: every line now shows its type (OK, INFO, WARN, ERR) in its own color, and the chips above the console hide or show a type. Export log and Copy diagnostics still include every line."),
+            (NEW, "Donate button in Support. It opens the donation page in your browser. Donating is completely optional."),
+            (NEW, "Two more languages: Brazilian Portuguese and Spanish. The language button at the top right now opens a menu with every language."),
+            (IMPROVED, "The app now adapts to any window size, from small laptops to ultrawide monitors: pages fill the space better and no longer stretch awkwardly."),
+        ),
+    ),
+    Release(
         "2.4.0",
         "2026-11-01",
         (

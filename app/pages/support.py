@@ -12,6 +12,7 @@ from app.widgets.buttons import AppButton
 ORIGINAL_AUTHOR = "s0m3thing_matters"
 VERSION_AUTHOR = "Uno_de_tres"
 DISCORD_URL = "https://discord.gg/rsgserver"
+DONATE_URL = "https://rbxl-skin-gallery.onrender.com/donate"
 
 TAG_LABELS = {NEW: "NEW", IMPROVED: "IMPROVED", FIX: "FIX"}
 
@@ -111,6 +112,21 @@ class SupportPage(Page):
         columns.addWidget(card(discord_box, (22, 20, 22, 20)), 1)
 
         self.root.addLayout(columns)
+
+        donate_row = QHBoxLayout()
+        donate_row.setSpacing(16)
+        donate_text = QVBoxLayout()
+        donate_text.setSpacing(4)
+        donate_text.addWidget(section_label("Support the project"))
+        donate_hint = QLabel("RSG LocalHost is free. If it helps you, a donation keeps it going. It is completely optional.")
+        donate_hint.setObjectName("fieldHint")
+        donate_hint.setWordWrap(True)
+        donate_text.addWidget(donate_hint)
+        donate_row.addLayout(donate_text, 1)
+        donate = AppButton("Donate", "heart", "primary")
+        donate.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(DONATE_URL)))
+        donate_row.addWidget(donate, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.root.addWidget(card(donate_row, (22, 16, 22, 16)))
 
         log_box = QVBoxLayout()
         log_box.setSpacing(12)

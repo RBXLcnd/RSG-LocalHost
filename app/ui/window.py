@@ -37,7 +37,7 @@ from app.core.config import (
     WINDOW_MIN_W,
     WINDOW_W,
 )
-from app.core import discord_status, i18n
+from app.core import discord_status, i18n, motion
 from app.core.i18n import tr
 from app.core.player_count import PlayerCountServer
 from app.core import updates
@@ -81,6 +81,7 @@ from app.widgets import brand
 from app.widgets.brand import GlowBackground, make_app_icon
 from app.widgets.drop_overlay import DropOverlay
 from app.widgets.qr_overlay import QrOverlay
+from app.widgets.status import StatusDot
 from app.widgets.toast import Toast
 
 
@@ -260,6 +261,19 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
+    def open_join_link(self, tunnel: str) -> None:
+        """An rsg://join/host:port link was opened: bring the window up and fill the Join page. Never connects by itself."""
+        self.restore_from_tray()
+        if "join" in getattr(self, "active_modes", set()):
+            self.toast("Connection is already active.", "warning")
+            return
+        self.navigate("join")
+        page = self._join_page()
+        if page is not None:
+            page.tunnel.edit.setText(tunnel)
+            page.tunnel.edit.setFocus()
+        self.toast("Invite loaded. Press “Join tunnel” to connect.", "info")
+
     def hide_to_tray(self) -> None:
         self.hide()
         if self.tray and not self._tray_hint_shown:
@@ -389,7 +403,6 @@ class MainWindow(QMainWindow):
             return
 
         self.current_key = key
-        self.title_bar.nav.set_current(key)
         builders = {
             "overview": lambda: OverviewPage(self),
             "create": lambda: CreatePage(self),
@@ -398,7 +411,10 @@ class MainWindow(QMainWindow):
             "support": lambda: SupportPage(self),
         }
         builder = builders.get(key, builders["overview"])
-        self._set_page(builder())
+        page = builder()
+        # after the page is built, so a slow build cannot swallow the sliding line
+        self.title_bar.nav.set_current(key)
+        self._set_page(page)
 
     def _set_page(self, page: QWidget) -> None:
         old = self.stack.currentWidget()
@@ -411,6 +427,8 @@ class MainWindow(QMainWindow):
             old.deleteLater()
 
     def _animate_page_in(self, page: QWidget) -> None:
+        if not motion.enabled():
+            return
         effect = QGraphicsOpacityEffect(page)
         page.setGraphicsEffect(effect)
         anim = QPropertyAnimation(effect, b"opacity", page)
@@ -884,12 +902,23 @@ class MainWindow(QMainWindow):
         lang = i18n.get_language()
         self.settings = self.store.update(self.settings, language=lang)
         i18n.retranslate_all()
+        for session_page in self.session_pages.values():
+            session_page._update_legend()
         self.title_bar.set_language(lang)
         self.update_session_status()
         self._background.update()
 
     def toggle_language(self) -> None:
-        self.set_language("en" if i18n.get_language() == "pt" else "pt")
+        """Language button: a small menu with every language (the current one is ticked)."""
+        menu = QMenu(self)
+        current = i18n.get_language()
+        for code, name in i18n.LANGUAGES.items():
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(code == current)
+            action.triggered.connect(lambda _=False, c=code: self.set_language(c))
+        button = self.title_bar.lang_button
+        menu.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
     def set_appearance(self, mode: str | None = None, accent: str | None = None) -> None:
         """Dark/light mode and accent colour. Re-colours the whole app at once."""
@@ -901,6 +930,8 @@ class MainWindow(QMainWindow):
         refresh_stylesheet(QApplication.instance())
         self.title_bar.restyle()
         self._background.update()
+        for session_page in self.session_pages.values():
+            session_page.console.restyle()
         bar = None
         for area in self.findChildren(QScrollArea):
             if area.isVisible():
@@ -910,6 +941,14 @@ class MainWindow(QMainWindow):
         self.navigate(key)
         if bar:
             QTimer.singleShot(0, lambda: [a.verticalScrollBar().setValue(bar) for a in self.findChildren(QScrollArea) if a.isVisible()])
+
+    def set_animations(self, enabled: bool) -> None:
+        """Turn all motion on or off. Takes effect at once and is remembered."""
+        self.settings = self.store.update(self.settings, animations=enabled)
+        motion.configure(enabled)
+        for dot in self.findChildren(StatusDot):  # live dots start or stop pulsing
+            dot._sync_pulse()
+        self.title_bar.nav._place_indicator(animate=False)
 
     def set_background_theme(self, key: str) -> None:
         brand.set_theme(key)
@@ -1516,7 +1555,7 @@ class MainWindow(QMainWindow):
 
     def export_log(self, page: SessionPage) -> None:
         """Save the console of a session page to a .log file the user picks."""
-        text = page.console.toPlainText()
+        text = page.console.full_text()
         if not text.strip():
             self.toast("The console is empty, nothing to export.", "warning")
             return
@@ -1565,7 +1604,7 @@ class MainWindow(QMainWindow):
             map_name=map_name,
             studio_name=Path(studio).name if studio else "",
             studio_found=bool(studio) and Path(studio).is_file(),
-            log_text=page.console.toPlainText(),
+            log_text=page.console.full_text(),
             secrets=secrets,
         )
         self.copy_to_clipboard(text, "Diagnostics copied.", button, "Copied")

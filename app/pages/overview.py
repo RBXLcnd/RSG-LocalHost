@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
 from app.core.config import OVERVIEW_HISTORY_ROWS, PROXY_PORT
+from app.core import motion
 from app.core import stats as stats_mod
 from app.core.i18n import tr
 from app.core.uptime import format_uptime
@@ -123,11 +124,16 @@ def _history_row(entry: dict) -> QFrame:
     return row
 
 
-def _metric(value: str, caption: str) -> QVBoxLayout:
+def _metric(value: str, caption: str, count_to: int | None = None, fmt=str) -> QVBoxLayout:
+    """A number with its caption. With `count_to` the number counts up from 0 when it appears."""
     box = QVBoxLayout()
     box.setSpacing(2)
     number = QLabel(value)
     number.setObjectName("metricValue")
+    if count_to:
+        number.setText(fmt(0))
+        motion.tween(number, 0, count_to, 800, lambda v: number.setText(fmt(round(v))),
+                     on_done=lambda: number.setText(value))
     text = QLabel(caption)
     text.setObjectName("fieldHint")
     box.addWidget(number)
@@ -139,12 +145,12 @@ def _stats_card(week: stats_mod.WeekStats) -> QFrame:
     """Last 7 days of hosting: totals plus a small bar chart (hours per day)."""
     box = QVBoxLayout()
     box.setSpacing(12)
-    box.addWidget(section_label("Last 7 days"))
+    box.addWidget(section_label("Last 7 days", "overview_week"))
     numbers = QHBoxLayout()
     numbers.setSpacing(28)
-    numbers.addLayout(_metric(format_uptime(week.total_seconds), "Time online"))
-    numbers.addLayout(_metric(str(week.sessions), "Sessions hosted"))
-    numbers.addLayout(_metric(str(week.peak_players) if week.peak_players else "-", "Player peak"))
+    numbers.addLayout(_metric(format_uptime(week.total_seconds), "Time online", week.total_seconds, lambda s: format_uptime(int(s))))
+    numbers.addLayout(_metric(str(week.sessions), "Sessions hosted", week.sessions))
+    numbers.addLayout(_metric(str(week.peak_players) if week.peak_players else "-", "Player peak", week.peak_players))
     numbers.addStretch(1)
     box.addLayout(numbers)
     box.addWidget(WeekChart(week.days))
@@ -173,7 +179,9 @@ class OverviewPage(Page):
             row = QHBoxLayout(banner)
             row.setContentsMargins(18, 10, 12, 10)
             row.setSpacing(12)
-            row.addWidget(StatusDot("#2ee6a6", 8))
+            live_dot = StatusDot("#2ee6a6", 8)
+            live_dot.set_pulsing(True)
+            row.addWidget(live_dot)
             if server_active and connection_active:
                 what = "Server + tunnel running"
             elif server_active:
@@ -246,7 +254,7 @@ class OverviewPage(Page):
             box = QVBoxLayout()
             box.setSpacing(10)
             head = QHBoxLayout()
-            head.addWidget(section_label("Recent sessions"))
+            head.addWidget(section_label("Recent sessions", "overview_recent"))
             head.addStretch(1)
             clear = AppButton("Clear", None, "ghost")
             clear.setToolTip("Delete the session history")
@@ -258,4 +266,4 @@ class OverviewPage(Page):
                     box.addWidget(divider())
                 box.addWidget(_history_row(entry))
             self.root.addWidget(card(box, (22, 14, 22, 14)))
-        self.root.addStretch()
+        self.root.addStretch(1)

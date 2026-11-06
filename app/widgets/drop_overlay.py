@@ -5,6 +5,7 @@ from PySide6.QtGui import QFont, QPainter, QPen
 from app.styles.palette import qcolor as QColor
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QWidget
 
+from app.core import motion
 from app.widgets.icons import app_icon
 
 
@@ -25,7 +26,7 @@ class DropOverlay(QWidget):
         self.setGraphicsEffect(self._opacity)
         # one reusable animation; retargeted on every fade
         self._anim = QPropertyAnimation(self._opacity, b"opacity", self)
-        self._anim.setDuration(130)
+        self._anim.setDuration(motion.ms(130))
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._anim.finished.connect(self._on_fade_finished)
         self.hide()
@@ -53,6 +54,7 @@ class DropOverlay(QWidget):
 
     def _fade(self, end: float) -> None:
         self._anim.stop()
+        self._anim.setDuration(motion.ms(130))
         self._anim.setStartValue(self._opacity.opacity())
         self._anim.setEndValue(end)
         self._anim.start()
